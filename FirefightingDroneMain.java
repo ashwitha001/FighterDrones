@@ -3,19 +3,20 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class FirefightingDroneMain {
     public static void main(String[] args) {
-        BlockingQueue<String> schedulerQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<String> incidentQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<String> dronesQueue = new LinkedBlockingQueue<>();
 
-        Thread fireIncidentThread = new Thread(new FireIncidentSubsystem(schedulerQueue), "FireIncidentSubsystem");
-        Thread schedulerThread = new Thread(new Scheduler(schedulerQueue), "Scheduler");
-        Thread droneThread = new Thread(new DroneSubsystem(), "DroneSubsystem");
+        Thread fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue), "FireIncidentSubsystem");
+        Thread schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue), "Scheduler");
+        Thread droneThread = new Thread(new DroneSubsystem(dronesQueue), "DroneSubsystem");
 
         fireIncidentThread.start();
         schedulerThread.start();
         droneThread.start();
 
         try {
-            // Allow the threads to run for a short period to simulate system activity
             Thread.sleep(5000);
+            // Allow the threads to run for a short period to simulate system activity
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

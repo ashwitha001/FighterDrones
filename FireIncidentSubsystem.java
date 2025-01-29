@@ -2,10 +2,10 @@ import java.io.*;
 import java.util.concurrent.BlockingQueue;
 
 public class FireIncidentSubsystem implements Runnable {
-    private final BlockingQueue<String> schedulerQueue;
+    private final BlockingQueue<String> incidentQueue;
 
-    public FireIncidentSubsystem(BlockingQueue<String> schedulerQueue) {
-        this.schedulerQueue = schedulerQueue;
+    public FireIncidentSubsystem(BlockingQueue<String> incidentQueue) {
+        this.incidentQueue = incidentQueue;
     }
 
     @Override
@@ -16,14 +16,14 @@ public class FireIncidentSubsystem implements Runnable {
             // Read and display zone data
             String zoneLine;
             while ((zoneLine = zoneReader.readLine()) != null) {
-                System.out.println("[FireIncidentSubsystem] Zone Info: " + zoneLine);
+                System.out.println("Zone Info: " + zoneLine);
             }
-
+            System.out.println("\nFire Incidents:");
             // Read and send events to the scheduler
             String eventLine;
             while ((eventLine = eventReader.readLine()) != null) {
                 System.out.println("[FireIncidentSubsystem] Sending event to Scheduler: " + eventLine);
-                schedulerQueue.put(eventLine); // Send event to Scheduler
+                incidentQueue.put(eventLine); // Send event to Scheduler
             }
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
