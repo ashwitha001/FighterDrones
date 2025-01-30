@@ -1,11 +1,16 @@
 import java.util.concurrent.BlockingQueue;
 
+/**
+ * Drone Subsystem:
+ * - Receives dispatch orders from the Scheduler.
+ * - Simulates fire extinguishing at a given zone.
+ * - Sends a completion message back to the Scheduler.
+ */
 public class DroneSubsystem implements Runnable {
-    private final BlockingQueue<String> dronesQueue;
-    private final BlockingQueue<String> droneCompletionQueue;
+    private final BlockingQueue<Message> dronesQueue;
+    private final BlockingQueue<Message> droneCompletionQueue;
 
-
-    public DroneSubsystem(BlockingQueue<String> dronesQueue, BlockingQueue<String> droneCompletionQueue) {
+    public DroneSubsystem(BlockingQueue<Message> dronesQueue, BlockingQueue<Message> droneCompletionQueue) {
         this.dronesQueue = dronesQueue;
         this.droneCompletionQueue = droneCompletionQueue;
     }
@@ -14,18 +19,22 @@ public class DroneSubsystem implements Runnable {
     public void run() {
         while (true) {
             try {
-                String eventFire = dronesQueue.take(); //  Send to DroneSubsystem
-                System.out.println("[DroneSubsystem] Received Event: " + eventFire);
-                System.out.println("[DroneSubsystem] Drone dispatched...");
-                Thread.sleep(2000);
-                System.out.println("[DroneSubsystem] FIRE REMOVED at event: " + eventFire);
+                // Receive event from Scheduler
+                Message eventFire = dronesQueue.take();
+                System.out.println("[DroneSubsystem] Dispatch received: " + eventFire);
 
-                droneCompletionQueue.put(eventFire);
-                //System.out.println("[DroneSubsystem] Sent completion message: " + eventFire);
+                // Simulate firefighting process
+                System.out.println("[DroneSubsystem] Drone dispatched to Zone " + eventFire.getZoneID());
+                Thread.sleep(2000); // Simulate travel time
+
+                System.out.println("[DroneSubsystem] FIRE EXTINGUISHED at Zone " + eventFire.getZoneID());
+
+                // Notify completion
+                droneCompletionQueue.put(new Message("FIRE_EXTINGUISHED", eventFire.getZoneID(), eventFire.getSeverity()));
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                System.out.println("[DroneSubsystem] Interrupted, shutting down...");
+                break;
             }
         }
-
     }
 }

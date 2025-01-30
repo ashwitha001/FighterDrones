@@ -1,13 +1,20 @@
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+/**
+ * FirefightingDroneMain:
+ * - Initializes and starts all subsystems as separate threads.
+ * - Manages the communication between FireIncidentSubsystem, Scheduler, and DroneSubsystem.
+ */
 public class FirefightingDroneMain {
     public static void main(String[] args) {
-        BlockingQueue<String> incidentQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<String> dronesQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<String> droneCompletionQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<String> incidentCompletionQueue = new LinkedBlockingQueue<>();
+        // Initialize BlockingQueues for inter-thread communication
+        BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Message> dronesQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Message> droneCompletionQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
+        // Create and start threads
         Thread fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "FireIncidentSubsystem");
         Thread schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "Scheduler");
         Thread droneThread = new Thread(new DroneSubsystem(dronesQueue, droneCompletionQueue), "DroneSubsystem");
@@ -17,12 +24,11 @@ public class FirefightingDroneMain {
         droneThread.start();
 
         try {
-            Thread.sleep(20000);
-            // Allow the threads to run for a short period to simulate system activity
+            Thread.sleep(20000); // Simulate system activity
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        System.out.println("....Fires are all put out!");
+        System.out.println("....Simulation complete. Fires are extinguished!");
     }
 }
