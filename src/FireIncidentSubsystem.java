@@ -1,6 +1,5 @@
 import java.io.*;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 public class FireIncidentSubsystem implements Runnable {
     private final BlockingQueue<String> incidentQueue;
