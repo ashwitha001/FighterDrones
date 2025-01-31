@@ -1,6 +1,8 @@
-package src;
+package src.test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import src.Coordinates;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class CoordinatesTest {
