@@ -1,6 +1,5 @@
 import java.io.Serializable;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Represents a structured message used for communication between subsystems.
