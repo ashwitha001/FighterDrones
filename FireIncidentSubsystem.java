@@ -115,6 +115,7 @@ public class FireIncidentSubsystem implements Runnable {
                 Message message = getMessage(eventLine, timeFormatter);
 
                 eventList.add(message);
+                System.out.println("[FireIncidentSubsystem] Received event: " + message);
             }
         } catch (IOException e) {
             System.err.println("[FireIncidentSubsystem] Error reading " + eventsFile + ": " + e.getMessage());
