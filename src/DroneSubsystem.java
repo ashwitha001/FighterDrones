@@ -13,10 +13,11 @@ public class DroneSubsystem implements Runnable {
     private final BlockingQueue<Message> droneCompletionQueue;
 
     public DroneSubsystem(BlockingQueue<Message> dronesQueue, BlockingQueue<Message> droneCompletionQueue) {
+
         this.dronesQueue = dronesQueue;
         this.droneCompletionQueue = droneCompletionQueue;
     }
-
+  
     @Override
     public void run() {
         while (true) {
@@ -53,5 +54,6 @@ public class DroneSubsystem implements Runnable {
                 break;
             }
         }
+
     }
 }

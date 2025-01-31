@@ -23,6 +23,7 @@ public class FireIncidentSubsystem implements Runnable {
                                  BlockingQueue<Message> incidentCompletionQueue) {
         this.incidentQueue = incidentQueue;
         this.incidentCompletionQueue = incidentCompletionQueue;
+
     }
 
     @Override
@@ -168,3 +169,4 @@ public class FireIncidentSubsystem implements Runnable {
         }
     }
 }
+
