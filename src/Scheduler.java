@@ -2,15 +2,20 @@ package src;
 
 import java.util.concurrent.BlockingQueue;
 
+/**
+ * Scheduler:
+ * - Acts as a central router between FireIncidentSubsystem and DroneSubsystem.
+ * - Passes fire events to available drones.
+ * - Notifies FireIncidentSubsystem when fires are extinguished.
+ */
 public class Scheduler implements Runnable {
-    private final BlockingQueue<String> incidentQueue;
-    private final BlockingQueue<String> dronesQueue;
-    private final BlockingQueue<String> droneCompletionQueue;
-    private final BlockingQueue<String> incidentCompletionQueue;
+    private final BlockingQueue<Message> incidentQueue;
+    private final BlockingQueue<Message> dronesQueue;
+    private final BlockingQueue<Message> droneCompletionQueue;
+    private final BlockingQueue<Message> incidentCompletionQueue;
 
-
-
-    public Scheduler(BlockingQueue<String> incidentQueue, BlockingQueue<String> dronesQueue, BlockingQueue<String> droneCompletionQueue, BlockingQueue<String> incidentCompletionQueue) {
+    public Scheduler(BlockingQueue<Message> incidentQueue, BlockingQueue<Message> dronesQueue,
+                     BlockingQueue<Message> droneCompletionQueue, BlockingQueue<Message> incidentCompletionQueue) {
         this.incidentQueue = incidentQueue;
         this.dronesQueue = dronesQueue;
         this.droneCompletionQueue = droneCompletionQueue;
@@ -21,25 +26,28 @@ public class Scheduler implements Runnable {
     public void run() {
         while (true) {
             try {
-                // Receive from FireIncidentSubsystem
-                String event = incidentQueue.take();
-                System.out.println("[Scheduler] Received Fire Event: " + event);
+                // Receive fire event from FireIncidentSubsystem
+                Message event = incidentQueue.take();
+                //System.out.println("[Scheduler] Received Fire Event: " + event);
+                Logger.log("[Scheduler]", "Received Fire Event: " + event);
 
-                // Send event to DroneSubsystem
+                // Forward the event to DroneSubsystem
+                //System.out.println("[Scheduler] Sent event to DroneSubsystem: " + event);
+                Logger.log("[Scheduler]", "Sent event to DroneSubsystem: " + event);
                 dronesQueue.put(event);
-                System.out.println("[Scheduler] Sent event to DroneSubsystem: " + event);
 
-                //wait for completion
-                String completedEvent = droneCompletionQueue.take();
-                //System.out.println("[Scheduler] Received response from DroneSubsystem: " + completedEvent);
+                // Wait for the drone to complete the task
+                Message completedEvent = droneCompletionQueue.take();
+                //System.out.println("[Scheduler] Completion confirmed: " + completedEvent);
+                Logger.log("[Scheduler]", "Completion confirmed: " + completedEvent);
 
-                // Notify Fire Incident Subsystem
+                // Forward completion event to FireIncidentSubsystem
+                //System.out.println("[Scheduler] Completion sent: " + completedEvent);
+                Logger.log("[Scheduler]", "Completion sent: " + completedEvent);
                 incidentCompletionQueue.put(completedEvent);
-                //System.out.println("[Scheduler] Sending completion response to FireIncidentSubsystem: " + completedEvent);
-                } catch (InterruptedException e) {
+            } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
     }
-
 }
