@@ -23,12 +23,13 @@ public class FirefightingDroneMain {
         schedulerThread.start();
         droneThread.start();
 
+        // Let the system run for some time
         try {
-            Thread.sleep(20000); // Simulate system activity
+            Thread.sleep(20000); // 20 seconds
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        System.out.println("....Simulation complete. Fires are extinguished!");
+        System.out.println("....Simulation complete.");
     }
 }

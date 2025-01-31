@@ -26,18 +26,23 @@ public class Scheduler implements Runnable {
             try {
                 // Receive fire event from FireIncidentSubsystem
                 Message event = incidentQueue.take();
-                System.out.println("[Scheduler] Received Fire Event: " + event);
+                //System.out.println("[Scheduler] Received Fire Event: " + event);
+                Logger.log("[Scheduler]", "Received Fire Event: " + event);
 
                 // Forward the event to DroneSubsystem
+                //System.out.println("[Scheduler] Sent event to DroneSubsystem: " + event);
+                Logger.log("[Scheduler]", "Sent event to DroneSubsystem: " + event);
                 dronesQueue.put(event);
-                System.out.println("[Scheduler] Sent event to DroneSubsystem: " + event);
 
                 // Wait for the drone to complete the task
                 Message completedEvent = droneCompletionQueue.take();
+                //System.out.println("[Scheduler] Completion confirmed: " + completedEvent);
+                Logger.log("[Scheduler]", "Completion confirmed: " + completedEvent);
 
                 // Forward completion event to FireIncidentSubsystem
+                //System.out.println("[Scheduler] Completion sent: " + completedEvent);
+                Logger.log("[Scheduler]", "Completion sent: " + completedEvent);
                 incidentCompletionQueue.put(completedEvent);
-                System.out.println("[Scheduler] Fire extinguished at: " + completedEvent);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
