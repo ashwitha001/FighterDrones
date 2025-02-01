@@ -11,7 +11,7 @@ This submission includes:
 
 
 ## Team Members & Responsibilities
-- **Quinn Vo**: README file, Sequence Diagram
+- **Quinn Vo**: README file, Sequence Diagram (When there is a fire event happens)
 - **Ashwitha Ala**: Code base
 - **Michael Palummieri**: Code base
 - **Tudor Lungu**: Unit tests
