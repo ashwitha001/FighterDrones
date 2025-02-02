@@ -1,12 +1,12 @@
-package main.java;
+package main;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * FirefightingDroneMain:
+ * main.FirefightingDroneMain:
  * - Initializes and starts all subsystems as separate threads.
- * - Manages the communication between FireIncidentSubsystem, Scheduler, and DroneSubsystem.
+ * - Manages the communication between main.FireIncidentSubsystem, main.Scheduler, and main.DroneSubsystem.
  */
 public class FirefightingDroneMain {
     public static void main(String[] args) {
@@ -17,9 +17,9 @@ public class FirefightingDroneMain {
         BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
         // Create and start threads
-        Thread fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "FireIncidentSubsystem");
-        Thread schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "Scheduler");
-        Thread droneThread = new Thread(new DroneSubsystem(dronesQueue, droneCompletionQueue), "DroneSubsystem");
+        Thread fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "main.FireIncidentSubsystem");
+        Thread schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "main.Scheduler");
+        Thread droneThread = new Thread(new DroneSubsystem(dronesQueue, droneCompletionQueue), "main.DroneSubsystem");
 
         fireIncidentThread.start();
         schedulerThread.start();

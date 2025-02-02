@@ -1,4 +1,4 @@
-package main.java;
+package main;
 
 import java.io.*;
 import java.time.LocalTime;
@@ -9,7 +9,7 @@ import java.util.concurrent.BlockingQueue;
 /**
  * Fire Incident Subsystem:
  * - Reads fire events from "events.csv".
- * - Sends structured messages to the Scheduler.
+ * - Sends structured messages to the main.Scheduler.
  * - Listens for fire extinguishment confirmations
  */
 public class FireIncidentSubsystem implements Runnable {
@@ -36,9 +36,9 @@ public class FireIncidentSubsystem implements Runnable {
         // Dispatch events in chronological order
         for (Message event : allEvents) {
             try {
-                // Send the event to the Scheduler
-                //System.out.println("[FireIncidentSubsystem] Sent event: " + event);
-                Logger.log("[FireIncidentSubsystem]", "Sent event: " + event);
+                // Send the event to the main.Scheduler
+                //System.out.println("[main.FireIncidentSubsystem] Sent event: " + event);
+                Logger.log("[main.FireIncidentSubsystem]", "Sent event: " + event);
                 incidentQueue.put(event);
 
                 // Check for any completed fires in the queue before sending next event
@@ -48,7 +48,7 @@ public class FireIncidentSubsystem implements Runnable {
                 Thread.sleep(500);
 
             } catch (InterruptedException e) {
-                System.err.println("[FireIncidentSubsystem] Interrupted while sending events.");
+                System.err.println("[main.FireIncidentSubsystem] Interrupted while sending events.");
                 Thread.currentThread().interrupt();
                 break;
             }
@@ -60,12 +60,12 @@ public class FireIncidentSubsystem implements Runnable {
                 checkForCompletions();
                 Thread.sleep(200); // idle a bit
             } catch (InterruptedException e) {
-                System.err.println("[FireIncidentSubsystem] Interrupted while waiting for completions.");
+                System.err.println("[main.FireIncidentSubsystem] Interrupted while waiting for completions.");
                 Thread.currentThread().interrupt();
                 break;
             }
         }
-        System.out.println("[FireIncidentSubsystem] Exiting...");
+        System.out.println("[main.FireIncidentSubsystem] Exiting...");
     }
 
     /**
@@ -93,16 +93,16 @@ public class FireIncidentSubsystem implements Runnable {
                 );
 
                 zoneMap.put(zoneID, coords);
-                System.out.println("[FireIncidentSubsystem] Loaded zone " + zoneID + ": " + coords);
+                System.out.println("[main.FireIncidentSubsystem] Loaded zone " + zoneID + ": " + coords);
             }
             System.out.println("====================================================");
         } catch (IOException e) {
-            System.err.println("[FireIncidentSubsystem] Could not read zones file: " + zonesFile);
+            System.err.println("[main.FireIncidentSubsystem] Could not read zones file: " + zonesFile);
         }
     }
 
     /**
-     * Reads all events from events.csv into a List<Message>.
+     * Reads all events from events.csv into a List<main.Message>.
      */
     private List<Message> loadAndParseEvents(String eventsFile) {
         List<Message> eventList = new ArrayList<>();
@@ -117,10 +117,10 @@ public class FireIncidentSubsystem implements Runnable {
                 Message message = getMessage(eventLine, timeFormatter);
 
                 eventList.add(message);
-                System.out.println("[FireIncidentSubsystem] Received event: " + message);
+                System.out.println("[main.FireIncidentSubsystem] Received event: " + message);
             }
         } catch (IOException e) {
-            System.err.println("[FireIncidentSubsystem] Error reading " + eventsFile + ": " + e.getMessage());
+            System.err.println("[main.FireIncidentSubsystem] Error reading " + eventsFile + ": " + e.getMessage());
         }
         return eventList;
     }
@@ -163,8 +163,8 @@ public class FireIncidentSubsystem implements Runnable {
     private void checkForCompletions() throws InterruptedException {
         while (!incidentCompletionQueue.isEmpty()) {
             Message completedEvent = incidentCompletionQueue.take();
-            //System.out.println("[FireIncidentSubsystem] Completion confirmed: " + completedEvent);
-            Logger.log("[FireIncidentSubsystem]", "Completion confirmed of: " + completedEvent);
+            //System.out.println("[main.FireIncidentSubsystem] Completion confirmed: " + completedEvent);
+            Logger.log("[main.FireIncidentSubsystem]", "Completion confirmed of: " + completedEvent);
         }
     }
 }

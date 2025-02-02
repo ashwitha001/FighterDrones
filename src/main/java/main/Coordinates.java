@@ -1,4 +1,5 @@
-package main.java;
+package main;
+
 /**
  * Represents the coordinates of fire incident zones.
  * This will be used to determine drone deployment/navigation between zones.

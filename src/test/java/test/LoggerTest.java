@@ -1,6 +1,6 @@
-package test.java;
+package test;
 
-import main.java.Logger;
+import main.Logger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

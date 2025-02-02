@@ -1,8 +1,8 @@
-package test.java;
+package test;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import main.java.Coordinates;
+import main.Coordinates;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

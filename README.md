@@ -23,15 +23,15 @@ This submission includes:
 - **To run code:**
   -
   1. Open FighterDrones folder in IntelliJ
-  2. Run FirefightingDroneMain file
+  2. Run main.FirefightingDroneMain file
   3. Observe the output
   
 - **To run test:**
   -
     - Test files used:
-    1. CoordinatesTest.java
-    2. MessageTest.java
-    3. FireIncidentSubsystemTest.java
-    4. SchedulerTest.java
-    5. LoggerTest.java
-    6. DroneSubsystemTest.java
+    1. test.CoordinatesTest.java
+    2. test.MessageTest.java
+    3. test.FireIncidentSubsystemTest.java
+    4. test.SchedulerTest.java
+    5. test.LoggerTest.java
+    6. test.DroneSubsystemTest.java

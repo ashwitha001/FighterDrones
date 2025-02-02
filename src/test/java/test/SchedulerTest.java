@@ -1,9 +1,11 @@
+package test;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import main.java.Message;
-import main.java.Scheduler;
+import main.Message;
+import main.Scheduler;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,7 +19,7 @@ public class SchedulerTest {
         BlockingQueue<Message> droneCompletionQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
-        schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "Scheduler");
+        schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "main.Scheduler");
 
     }
     @Test

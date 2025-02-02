@@ -1,4 +1,4 @@
-package main.java;
+package main;
 
 import java.io.Serializable;
 import java.time.LocalTime;
@@ -43,7 +43,7 @@ public class Message implements Serializable {
     @Override
     public String toString() {
         // Include the eventTimeString in the output
-        return "Message{" +
+        return "main.Message{" +
                 "time='" + eventTimeString + "', " +
                 "type='" + type + "', " +
                 "zoneID=" + zoneID + ", " +

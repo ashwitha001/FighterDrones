@@ -1,10 +1,10 @@
-package test.java;
+package test;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import main.java.DroneSubsystem;
-import main.java.Message;
+import main.DroneSubsystem;
+import main.Message;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;

@@ -1,9 +1,11 @@
+package test;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import main.java.FireIncidentSubsystem;
+import main.FireIncidentSubsystem;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import main.java.Message;
+import main.Message;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 //Unused but may be used in the future
@@ -21,7 +23,7 @@ public class FireIncidentSubsystemTest {
         BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
-        fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "FireIncidentSubsystem");
+        fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "main.FireIncidentSubsystem");
 
     }
     @Test

@@ -1,6 +1,8 @@
+package test;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import main.java.Message;
+import main.Message;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -47,7 +49,7 @@ public class MessageTest {
 
     @Test
     void testMessageString(){
-        String expectedString = "Message{time='14:50:45', type='ACTIVE_FIRE', zoneID=1, severity='HIGH'}";
+        String expectedString = "main.Message{time='14:50:45', type='ACTIVE_FIRE', zoneID=1, severity='HIGH'}";
         assertEquals(expectedString,msg.toString());
     }
 }
