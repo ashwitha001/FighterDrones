@@ -1,29 +1,32 @@
-package src.test.java.src.test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import main.java.FireIncidentSubsystem;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import src.Message;
-import src.Scheduler;
-
+import main.java.Message;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class SchedulerTest {
-    Thread schedulerThread;
+//Unused but may be used in the future
+//import static org.mockito.Mockito.mock;
+//import org.junit.runner.RunWith;
+//import org.mockito.Mock;
+//import org.mockito.junit.MockitoJUnitRunner;
+//import org.powermock.modules.junit4.PowerMockRunner;
+
+public class FireIncidentSubsystemTest {
+    Thread fireIncidentThread;
 
     @BeforeEach
     public void setUp(){
         BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<Message> dronesQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<Message> droneCompletionQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
-        schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "Scheduler");
+        fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "FireIncidentSubsystem");
 
     }
     @Test
     public void test(){
-        schedulerThread.start();
+        fireIncidentThread.start();
 
         try {
             Thread.sleep(10000); // 10 seconds
@@ -31,7 +34,7 @@ public class SchedulerTest {
             e.printStackTrace();
         }
 
-        assertTrue(schedulerThread.isAlive());
+        assertTrue(fireIncidentThread.isAlive());
     }
 
 }

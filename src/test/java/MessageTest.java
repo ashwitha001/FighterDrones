@@ -1,11 +1,11 @@
-package src.test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import src.Message;
+import main.java.Message;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class MessageTest {
     Message msg;

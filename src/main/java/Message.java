@@ -1,4 +1,4 @@
-package src;
+package main.java;
 
 import java.io.Serializable;
 import java.time.LocalTime;
