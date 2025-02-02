@@ -33,4 +33,5 @@ This submission includes:
     2. MessageTest.java
     3. FireIncidentSubsystemTest.java
     4. SchedulerTest.java
-    5.
+    5. LoggerTest.java
+    6. DroneSubsystemTest.java
