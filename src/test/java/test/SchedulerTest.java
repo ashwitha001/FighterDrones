@@ -9,9 +9,17 @@ import main.Scheduler;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Test class to test Scheduler.java thread
+ *
+ */
 public class SchedulerTest {
     Thread schedulerThread;
 
+    /**
+     * Creating Scheduler Thread
+     *
+     */
     @BeforeEach
     public void setUp(){
         BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
@@ -22,6 +30,11 @@ public class SchedulerTest {
         schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "main.Scheduler");
 
     }
+
+    /**
+     * Testing Scheduler Thread
+     *
+     */
     @Test
     public void test(){
         schedulerThread.start();

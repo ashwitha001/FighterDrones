@@ -15,9 +15,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 //import org.mockito.junit.MockitoJUnitRunner;
 //import org.powermock.modules.junit4.PowerMockRunner;
 
+/**
+ * Test Class to test FireIncidentSubsystem.java thread
+ *
+ */
 public class FireIncidentSubsystemTest {
     Thread fireIncidentThread;
 
+    /**
+     * Creating FireIncidentSubsystem Thread
+     *
+     */
     @BeforeEach
     public void setUp(){
         BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
@@ -26,6 +34,11 @@ public class FireIncidentSubsystemTest {
         fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "main.FireIncidentSubsystem");
 
     }
+
+    /**
+     * Testing FireIncidentSubsystem Thread
+     *
+     */
     @Test
     public void test(){
         fireIncidentThread.start();
@@ -38,5 +51,4 @@ public class FireIncidentSubsystemTest {
 
         assertTrue(fireIncidentThread.isAlive());
     }
-
 }
