@@ -1,5 +1,8 @@
 package main;
 
+/**
+ * A simple logger class that logs messages with a subsystem label.
+ */
 public class Logger {
     private static final int LABEL_WIDTH = 30;
 
