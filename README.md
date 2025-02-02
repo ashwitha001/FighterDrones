@@ -29,5 +29,8 @@ This submission includes:
 - **To run test:**
   -
     - Test files used:
-    1.
-    2.
+    1. CoordinatesTest.java
+    2. MessageTest.java
+    3. FireIncidentSubsystemTest.java
+    4. SchedulerTest.java
+    5.
