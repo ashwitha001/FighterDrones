@@ -2,9 +2,8 @@ package test;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import main.Coordinates;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import main.Coordinates;
 
 /**
  * Test Class to test methods in Coordinates.java

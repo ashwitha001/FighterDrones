@@ -2,11 +2,11 @@ package test;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import main.FireIncidentSubsystem;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import main.Message;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 //Unused but may be used in the future
 //import static org.mockito.Mockito.mock;

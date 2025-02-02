@@ -2,12 +2,13 @@ package test;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import main.Message;
 import main.Scheduler;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 /**
  * Test class to test Scheduler.java thread

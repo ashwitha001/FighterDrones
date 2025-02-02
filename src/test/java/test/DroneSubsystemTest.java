@@ -2,18 +2,18 @@ package test;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
+import static org.junit.jupiter.api.Assertions.*;
 import main.DroneSubsystem;
 import main.Message;
-
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.*;
-
+/**
+ * Test Class to test DroneSubsystem.java thread
+ */
 public class DroneSubsystemTest {
     Thread droneSubsystemThread;
     BlockingQueue<Message> dronesQueue;
