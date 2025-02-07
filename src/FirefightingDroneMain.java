@@ -9,7 +9,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * - Manages the communication between FireIncidentSubsystem, Scheduler, and DroneSubsystem.
  */
 public class FirefightingDroneMain {
-    private static final int NUM_DRONES = 1;
+    private static final int NUM_DRONES = 1; // Set to 1 drone for iteration 2
 
     public static void main(String[] args) {
         // Initialize BlockingQueues for inter-thread communication

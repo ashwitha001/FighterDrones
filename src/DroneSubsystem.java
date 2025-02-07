@@ -10,7 +10,7 @@ import java.util.concurrent.BlockingQueue;
  */
 
 enum DroneState {
-    IDLE, EN_ROUTE, DROPPING_AGENT, RETURNING
+    IDLE, EN_ROUTE, DROPPING_AGENT, RETURNING // Remove RETURNING, add coordinates to the en_route state depicting where drone is headed (0,0 would mean returning)
 }
 public class DroneSubsystem implements Runnable {
     private final int droneID;
