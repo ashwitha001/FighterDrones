@@ -16,15 +16,20 @@ public class Scheduler implements Runnable {
     private final BlockingQueue<Message> droneCompletionQueue;
     private final BlockingQueue<Message> incidentCompletionQueue;
     private final Map<Integer, DroneState> droneStatus;
+    private final int numDrones;
 
     public Scheduler(BlockingQueue<Message> incidentQueue, BlockingQueue<Message> dronesQueue,
-                     BlockingQueue<Message> droneCompletionQueue, BlockingQueue<Message> incidentCompletionQueue) {
+                     BlockingQueue<Message> droneCompletionQueue, BlockingQueue<Message> incidentCompletionQueue, int numDrones) {
         this.incidentQueue = incidentQueue;
         this.dronesQueue = dronesQueue;
         this.droneCompletionQueue = droneCompletionQueue;
         this.incidentCompletionQueue = incidentCompletionQueue;
+        this.numDrones = numDrones;
         this.droneStatus = new HashMap<>();
-        droneStatus.put(0, DroneState.IDLE); // Initialize drone status
+        // Initialize drone statuses
+        for (int i = 0; i < numDrones; i++) {
+            droneStatus.put(i, DroneState.IDLE);
+        }
     }
 
     @Override

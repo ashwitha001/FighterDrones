@@ -20,7 +20,7 @@ public class FirefightingDroneMain {
 
         // Create and start threads
         Thread fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "FireIncidentSubsystem");
-        Thread schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "Scheduler");
+        Thread schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue, NUM_DRONES), "Scheduler");
 
         fireIncidentThread.start();
         schedulerThread.start();
