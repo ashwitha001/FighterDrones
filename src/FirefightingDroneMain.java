@@ -9,6 +9,8 @@ import java.util.concurrent.LinkedBlockingQueue;
  * - Manages the communication between FireIncidentSubsystem, Scheduler, and DroneSubsystem.
  */
 public class FirefightingDroneMain {
+    private static final int NUM_DRONES = 1;
+
     public static void main(String[] args) {
         // Initialize BlockingQueues for inter-thread communication
         BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
@@ -19,11 +21,15 @@ public class FirefightingDroneMain {
         // Create and start threads
         Thread fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "FireIncidentSubsystem");
         Thread schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "Scheduler");
-        Thread droneThread = new Thread(new DroneSubsystem(0, dronesQueue, droneCompletionQueue), "DroneSubsystem");
 
         fireIncidentThread.start();
         schedulerThread.start();
-        droneThread.start();
+
+        // Create and start multiple DroneSubsystems
+        for (int i = 0; i < NUM_DRONES; i++) {
+            Thread droneThread = new Thread(new DroneSubsystem(i, dronesQueue, droneCompletionQueue), "DroneSubsystem-" + i);
+            droneThread.start();
+        }
 
         // Let the system run for some time
         try {
