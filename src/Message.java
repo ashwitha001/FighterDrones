@@ -10,14 +10,26 @@ import java.time.LocalTime;
  */
 public class Message implements Serializable {
     private final String type;     // "FIRE_EVENT", "DRONE_STATUS", etc.
+    private final int droneID;     // Drone ID (-1 if not applicable)
     private final int zoneID;      // Fire zone ID
     private final String severity; // "HIGH", "MODERATE", "LOW"
-    private final LocalTime eventTime;         // Parsed time
+    private final java.time.LocalTime eventTime; // Parsed time
     private final String eventTimeString;      // Original string from CSV
 
-    public Message(String type, int zoneID, String severity,
-                   LocalTime eventTime, String eventTimeString) {
+    // Constructor for FireIncidentSubsystem messages (no droneID needed)
+    public Message(String type, int zoneID, String severity, java.time.LocalTime eventTime, String eventTimeString) {
         this.type = type;
+        this.droneID = -1; // No drone associated
+        this.zoneID = zoneID;
+        this.severity = severity;
+        this.eventTime = eventTime;
+        this.eventTimeString = eventTimeString;
+    }
+
+    // Constructor for Scheduler and DroneSubsystem messages (includes droneID)
+    public Message(String type, int droneID, int zoneID, String severity, java.time.LocalTime eventTime, String eventTimeString) {
+        this.type = type;
+        this.droneID = droneID;
         this.zoneID = zoneID;
         this.severity = severity;
         this.eventTime = eventTime;
@@ -27,13 +39,16 @@ public class Message implements Serializable {
     public String getType() {
         return type;
     }
+    public int getDroneID() {
+        return droneID;
+    }
     public int getZoneID() {
         return zoneID;
     }
     public String getSeverity() {
         return severity;
     }
-    public LocalTime getEventTime() {
+    public java.time.LocalTime getEventTime() {
         return eventTime;
     }
     public String getEventTimeString() {
@@ -42,12 +57,11 @@ public class Message implements Serializable {
 
     @Override
     public String toString() {
-        // Include the eventTimeString in the output
         return "Message{" +
                 "time='" + eventTimeString + "', " +
                 "type='" + type + "', " +
+                (droneID != -1 ? "droneID=" + droneID + ", " : "") +
                 "zoneID=" + zoneID + ", " +
                 "severity='" + severity + "'}";
     }
 }
-

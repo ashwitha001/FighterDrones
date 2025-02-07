@@ -8,14 +8,22 @@ import java.util.concurrent.BlockingQueue;
  * - Simulates fire extinguishing at a given zone.
  * - Sends a completion message back to the Scheduler.
  */
+
+enum DroneState {
+    IDLE, EN_ROUTE, DROPPING_AGENT, RETURNING
+}
 public class DroneSubsystem implements Runnable {
+    private final int droneID;
     private final BlockingQueue<Message> dronesQueue;
     private final BlockingQueue<Message> droneCompletionQueue;
+    private DroneState state;
 
-    public DroneSubsystem(BlockingQueue<Message> dronesQueue, BlockingQueue<Message> droneCompletionQueue) {
+    public DroneSubsystem(int droneID, BlockingQueue<Message> dronesQueue, BlockingQueue<Message> droneCompletionQueue) {
 
+        this.droneID = droneID;
         this.dronesQueue = dronesQueue;
         this.droneCompletionQueue = droneCompletionQueue;
+        this.state = DroneState.IDLE;
     }
   
     @Override
@@ -24,33 +32,40 @@ public class DroneSubsystem implements Runnable {
             try {
                 // Receive event from Scheduler
                 Message eventFire = dronesQueue.take();
-                //System.out.println("[DroneSubsystem] Dispatch received: " + eventFire);
-                Logger.log("[DroneSubsystem]", "Dispatch received: " + eventFire);
+                Logger.log("[DroneSubsystem-" + droneID + "]", "Dispatch received: " + eventFire);
 
                 // Simulate travel + firefighting
-                //System.out.println("[DroneSubsystem] Drone dispatched to Zone " + eventFire.getZoneID()
-                Logger.log("[DroneSubsystem]", "Drone dispatched to Zone " + eventFire.getZoneID()
+                state = DroneState.EN_ROUTE;
+                Logger.log("[DroneSubsystem-" + droneID + "]", "En route to Zone " + eventFire.getZoneID()
                         + " (Time = " + eventFire.getEventTimeString() + ")");
-                Thread.sleep(2000); // Simulate time needed to travel
+                // Notify scheduler that drone is en route
+                droneCompletionQueue.put(new Message("DRONE_EN_ROUTE", droneID, eventFire.getZoneID(), eventFire.getSeverity(), eventFire.getEventTime(), eventFire.getEventTimeString()));
+                Thread.sleep(2000); // Simulate travel
 
-                //System.out.println("[DroneSubsystem] FIRE EXTINGUISHED at Zone " + eventFire.getZoneID());
-                Logger.log("[DroneSubsystem]", "Completed: " + eventFire);
+                state = DroneState.DROPPING_AGENT;
+                Logger.log("[DroneSubsystem-" + droneID + "]", "Extinguishing Fire at Zone " + eventFire.getZoneID());
+                Thread.sleep(1000); // Simulate firefighting
 
+                state = DroneState.RETURNING;
+                Logger.log("[DroneSubsystem-" + droneID + "]", "Returning from Zone " + eventFire.getZoneID());
                 // Notify completion
                 Message doneMsg = new Message(
                         "FIRE_EXTINGUISHED",
+                        droneID,
                         eventFire.getZoneID(),
                         eventFire.getSeverity(),
                         eventFire.getEventTime(),
                         eventFire.getEventTimeString()
                 );
-
-                //System.out.println("[DroneSubsystem] Completion sent: " + doneMsg);
-                Logger.log("[DroneSubsystem]", "Completion sent: " + doneMsg);
+                Logger.log("[DroneSubsystem-" + droneID + "]", "Completion sent: " + doneMsg);
                 droneCompletionQueue.put(doneMsg);
+                state = DroneState.IDLE;
+                droneCompletionQueue.put(new Message("DRONE_IDLE", droneID, -1, "", null, "")); // Notify scheduler
+                Logger.log("[DroneSubsystem-" + droneID + "]", "Completion sent: " + doneMsg);
+
 
             } catch (InterruptedException e) {
-                System.out.println("[DroneSubsystem] Interrupted, shutting down...");
+                System.out.println("[DroneSubsystem-" + droneID + "]" + "Interrupted, shutting down...");
                 break;
             }
         }
