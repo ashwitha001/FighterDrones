@@ -1,53 +1,79 @@
 package main;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
 /**
- * main.Scheduler:
- * - Acts as a central router between main.FireIncidentSubsystem and main.DroneSubsystem.
+ * Scheduler:
+ * - Acts as a central router between FireIncidentSubsystem and DroneSubsystem.
  * - Passes fire events to available drones.
- * - Notifies main.FireIncidentSubsystem when fires are extinguished.
+ * - Notifies FireIncidentSubsystem when fires are extinguished.
  */
 public class Scheduler implements Runnable {
     private final BlockingQueue<Message> incidentQueue;
     private final BlockingQueue<Message> dronesQueue;
     private final BlockingQueue<Message> droneCompletionQueue;
     private final BlockingQueue<Message> incidentCompletionQueue;
+    private final Map<Integer, DroneState> droneStatus;
+    private final int numDrones;
 
     public Scheduler(BlockingQueue<Message> incidentQueue, BlockingQueue<Message> dronesQueue,
-                     BlockingQueue<Message> droneCompletionQueue, BlockingQueue<Message> incidentCompletionQueue) {
+                     BlockingQueue<Message> droneCompletionQueue, BlockingQueue<Message> incidentCompletionQueue, int numDrones) {
         this.incidentQueue = incidentQueue;
         this.dronesQueue = dronesQueue;
         this.droneCompletionQueue = droneCompletionQueue;
         this.incidentCompletionQueue = incidentCompletionQueue;
+        this.numDrones = numDrones;
+        this.droneStatus = new HashMap<>();
+        // Initialize drone statuses
+        for (int i = 0; i < numDrones; i++) {
+            droneStatus.put(i, DroneState.IDLE);
+        }
     }
 
     @Override
     public void run() {
         while (true) {
             try {
-                // Receive fire event from main.FireIncidentSubsystem
+                // Receive fire event from FireIncidentSubsystem
                 Message event = incidentQueue.take();
-                //System.out.println("[main.Scheduler] Received Fire Event: " + event);
-                Logger.log("[main.Scheduler]", "Received Fire Event: " + event);
+                Logger.log("[Scheduler]", "Received Fire Event: " + event);
 
-                // Forward the event to main.DroneSubsystem
-                //System.out.println("[main.Scheduler] Sent event to main.DroneSubsystem: " + event);
-                Logger.log("[main.Scheduler]", "Sent event to main.DroneSubsystem: " + event);
-                dronesQueue.put(event);
+                // Check for an available drone
+                int availableDrone = -1;
+                for (Map.Entry<Integer, DroneState> entry : droneStatus.entrySet()) {
+                    if (entry.getValue() == DroneState.IDLE) {
+                        availableDrone = entry.getKey();
+                        break;
+                    }
+                }
 
-                // Wait for the drone to complete the task
-                Message completedEvent = droneCompletionQueue.take();
-                //System.out.println("[main.Scheduler] Completion confirmed: " + completedEvent);
-                Logger.log("[main.Scheduler]", "Completion confirmed: " + completedEvent);
+                if (availableDrone != -1) {
+                    droneStatus.put(availableDrone, DroneState.EN_ROUTE);
+                    dronesQueue.put(event);
+                    Logger.log("[Scheduler]", "Dispatched Drone " + availableDrone + " to Zone " + event.getZoneID());
+                } else {
+                    Logger.log("[Scheduler]", "No available drones for Zone " + event.getZoneID() + "! Fire queued.");
+                }
 
-                // Forward completion event to main.FireIncidentSubsystem
-                //System.out.println("[main.Scheduler] Completion sent: " + completedEvent);
-                Logger.log("[main.Scheduler]", "Completion sent: " + completedEvent);
-                incidentCompletionQueue.put(completedEvent);
+                // Wait for drone status updates
+                Message droneUpdate = droneCompletionQueue.take();
+                if ("DRONE_EN_ROUTE".equals(droneUpdate.getType())) {
+                    droneStatus.put(droneUpdate.getDroneID(), DroneState.EN_ROUTE);
+                    Logger.log("[Scheduler]", "Drone " + droneUpdate.getDroneID() + " is en route to Zone " + droneUpdate.getZoneID());
+                } else if ("FIRE_EXTINGUISHED".equals(droneUpdate.getType())) {
+                    droneStatus.put(droneUpdate.getDroneID(), DroneState.RETURNING);
+                    Logger.log("[Scheduler]", "Fire Extinguished at Zone " + droneUpdate.getZoneID());
+                    incidentCompletionQueue.put(droneUpdate);
+                } else if ("DRONE_IDLE".equals(droneUpdate.getType())) {
+                    droneStatus.put(droneUpdate.getDroneID(), DroneState.IDLE);
+                    Logger.log("[Scheduler]", "Drone " + droneUpdate.getDroneID() + " is now IDLE.");
+                }
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
     }
 }
+
