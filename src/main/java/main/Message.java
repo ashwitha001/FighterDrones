@@ -1,7 +1,6 @@
-package src;
+package main;
 
 import java.io.Serializable;
-import java.time.LocalTime;
 
 /**
  * Represents a structured message used for communication between subsystems.

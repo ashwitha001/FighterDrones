@@ -1,4 +1,4 @@
-package src;
+package main;
 
 /**
  * Represents the coordinates of fire incident zones.

@@ -1,4 +1,4 @@
-package src;
+package main;
 
 public class Logger {
     private static final int LABEL_WIDTH = 30;
