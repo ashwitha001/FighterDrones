@@ -33,7 +33,7 @@ public class FirefightingDroneMain {
 
         // Let the system run for some time
         try {
-            Thread.sleep(20000); // 20 seconds
+            Thread.sleep(60000); // 60 seconds
 
         } catch (InterruptedException e) {
             e.printStackTrace();

@@ -3,72 +3,187 @@ package main;
 import java.util.concurrent.BlockingQueue;
 
 /**
- * Drone Subsystem:
- * - Receives dispatch orders from the Scheduler.
- * - Simulates fire extinguishing at a given zone.
- * - Sends a completion message back to the Scheduler.
+ * DroneSubsystem:
+ * - Sends intermediate messages (DRONE_EN_ROUTE, DRONE_ARRIVED, DRONE_DROPPING, FIRE_EXTINGUISHED, DRONE_IDLE)
+ * - Uses Utility.showProgress(...) for multi-line progress bars
+ * - Enforces 45-minute limit
  */
-
 enum DroneState {
-    IDLE, EN_ROUTE, DROPPING_AGENT, RETURNING // Remove RETURNING, add coordinates to the en_route state depicting where drone is headed (0,0 would mean returning)
+    IDLE,
+    EN_ROUTE,
+    DROPPING_AGENT
 }
+
 public class DroneSubsystem implements Runnable {
+    private static final double MAX_TRAVEL_TIME_SECONDS = 2700.0; // 45 minutes
+
     private final int droneID;
-    private final BlockingQueue<Message> dronesQueue;
-    private final BlockingQueue<Message> droneCompletionQueue;
+    private final BlockingQueue<Message> dronesQueue;           // from Scheduler
+    private final BlockingQueue<Message> droneCompletionQueue;  // to Scheduler
+
     private DroneState state;
+    private Coordinates currentLocation;
+    private double totalTravelTime;
 
-    public DroneSubsystem(int droneID, BlockingQueue<Message> dronesQueue, BlockingQueue<Message> droneCompletionQueue) {
-
+    public DroneSubsystem(int droneID,
+                          BlockingQueue<Message> dronesQueue,
+                          BlockingQueue<Message> droneCompletionQueue) {
         this.droneID = droneID;
         this.dronesQueue = dronesQueue;
         this.droneCompletionQueue = droneCompletionQueue;
+
         this.state = DroneState.IDLE;
+        this.currentLocation = new Coordinates(0, 0); // base
+        this.totalTravelTime = 0.0;
     }
-  
+
     @Override
     public void run() {
         while (true) {
             try {
-                // Receive event from Scheduler
-                Message eventFire = dronesQueue.take();
-                Logger.log("[DroneSubsystem-" + droneID + "]", "Dispatch received: " + eventFire);
+                // 1) Receive dispatch
+                Message eventMsg = dronesQueue.take();
+                Logger.log("[DroneSubsystem-" + droneID + "]",
+                        "Dispatch received: " + eventMsg);
 
-                // Simulate travel + firefighting
+                // The zone center or 0,0 from the event message
+                // Drone has to be at center of zone to extinguish fire
+                Coordinates zoneCenter = new Coordinates(
+                        eventMsg.getCenterX(),
+                        eventMsg.getCenterY()
+                );
+
+                // Calculate time to zone and back
+                double timeToZone = Utility.computeTravelTime(
+                        currentLocation.getX1(), currentLocation.getY1(),
+                        zoneCenter.getX1(),  zoneCenter.getY1()
+                );
+                double timeBack = Utility.computeTravelTime(
+                        zoneCenter.getX1(), zoneCenter.getY1(),
+                        0, 0
+                );
+
+                // Check 45-min total limit
+                if (totalTravelTime + timeToZone + timeBack > MAX_TRAVEL_TIME_SECONDS) {
+                    Logger.log("[DroneSubsystem-" + droneID + "]",
+                            "Not enough time to reach zone " + eventMsg.getZoneID()
+                                    + " and return before 45 mins!");
+                    // Possibly notify Scheduler or skip for iteration 2
+                    continue;
+                }
+
+                // 2) Send DRONE_EN_ROUTE to scheduler
+                Message enRouteMsg = new Message(
+                        "DRONE_EN_ROUTE",
+                        droneID,
+                        eventMsg.getZoneID(),
+                        eventMsg.getSeverity(),
+                        eventMsg.getEventTime(),
+                        eventMsg.getEventTimeString(),
+                        eventMsg.getCenterX(),
+                        eventMsg.getCenterY()
+                );
+                droneCompletionQueue.put(enRouteMsg);
+
+                // 3) Multi-line progress to zone
                 state = DroneState.EN_ROUTE;
-                Logger.log("[DroneSubsystem-" + droneID + "]", "En route to Zone " + eventFire.getZoneID()
-                        + " (Time = " + eventFire.getEventTimeString() + ")");
-                // Notify scheduler that drone is en route
-                droneCompletionQueue.put(new Message("DRONE_EN_ROUTE", droneID, eventFire.getZoneID(), eventFire.getSeverity(), eventFire.getEventTime(), eventFire.getEventTimeString()));
-                Thread.sleep(2000); // Simulate travel
+                String labelTo = String.format(
+                        "DRONE-%d => from (%d,%d) to (%d,%d)",
+                        droneID,
+                        currentLocation.getX1(), currentLocation.getY1(),
+                        zoneCenter.getX1(),      zoneCenter.getY1()
+                );
+                Utility.showProgress(timeToZone, 10, labelTo);
 
+                // Arrive
+                currentLocation = zoneCenter;
+                totalTravelTime += timeToZone;
+                // 4) DRONE_ARRIVED
+                Message arrivedMsg = new Message(
+                        "DRONE_ARRIVED",
+                        droneID,
+                        eventMsg.getZoneID(),
+                        eventMsg.getSeverity(),
+                        eventMsg.getEventTime(),
+                        eventMsg.getEventTimeString(),
+                        eventMsg.getCenterX(),
+                        eventMsg.getCenterY()
+                );
+                droneCompletionQueue.put(arrivedMsg);
+                Logger.log("[DroneSubsystem-" + droneID + "]",
+                        "Arrived at zone => " + currentLocation);
+
+                // 5) Drop agent: DRONE_DROPPING
                 state = DroneState.DROPPING_AGENT;
-                Logger.log("[DroneSubsystem-" + droneID + "]", "Extinguishing Fire at Zone " + eventFire.getZoneID());
-                Thread.sleep(1000); // Simulate firefighting
+                Message droppingMsg = new Message(
+                        "DRONE_DROPPING",
+                        droneID,
+                        eventMsg.getZoneID(),
+                        eventMsg.getSeverity(),
+                        eventMsg.getEventTime(),
+                        eventMsg.getEventTimeString(),
+                        eventMsg.getCenterX(),
+                        eventMsg.getCenterY()
+                );
+                droneCompletionQueue.put(droppingMsg);
 
-                state = DroneState.RETURNING;
-                Logger.log("[DroneSubsystem-" + droneID + "]", "Returning from Zone " + eventFire.getZoneID());
-                // Notify completion
+                Logger.log("[DroneSubsystem-" + droneID + "]",
+                        "Dropping agent at zone " + eventMsg.getZoneID());
+                Thread.sleep(1000);
+
+                // 6) Return to base
+                double returnTime = Utility.computeTravelTime(
+                        currentLocation.getX1(), currentLocation.getY1(),
+                        0, 0
+                );
+                state = DroneState.EN_ROUTE;
+                String labelBack = String.format(
+                        "DRONE-%d => returning from (%d,%d) to base (0,0)",
+                        droneID,
+                        currentLocation.getX1(), currentLocation.getY1()
+                );
+                Utility.showProgress(returnTime, 10, labelBack);
+
+                currentLocation = new Coordinates(0,0);
+                totalTravelTime += returnTime;
+                Logger.log("[DroneSubsystem-" + droneID + "]",
+                        "Refueled & restocked at base => totalTravelTime="
+                                + totalTravelTime);
+
+                // 7) FIRE_EXTINGUISHED
                 Message doneMsg = new Message(
                         "FIRE_EXTINGUISHED",
                         droneID,
-                        eventFire.getZoneID(),
-                        eventFire.getSeverity(),
-                        eventFire.getEventTime(),
-                        eventFire.getEventTimeString()
+                        eventMsg.getZoneID(),
+                        eventMsg.getSeverity(),
+                        eventMsg.getEventTime(),
+                        eventMsg.getEventTimeString(),
+                        eventMsg.getCenterX(),
+                        eventMsg.getCenterY()
                 );
-                Logger.log("[DroneSubsystem-" + droneID + "]", "Completion sent: " + doneMsg);
                 droneCompletionQueue.put(doneMsg);
-                state = DroneState.IDLE;
-                droneCompletionQueue.put(new Message("DRONE_IDLE", droneID, -1, "", null, "")); // Notify scheduler
-                Logger.log("[DroneSubsystem-" + droneID + "]", "Completion sent: " + doneMsg);
+                Logger.log("[DroneSubsystem-" + droneID + "]",
+                        "FIRE_EXTINGUISHED => done.");
 
+                // 8) DRONE_IDLE
+                state = DroneState.IDLE;
+                Message idleMsg = new Message(
+                        "DRONE_IDLE",
+                        droneID,
+                        -1,
+                        "",
+                        null,
+                        "",
+                        0,
+                        0
+                );
+                droneCompletionQueue.put(idleMsg);
 
             } catch (InterruptedException e) {
-                System.out.println("[DroneSubsystem-" + droneID + "]" + "Interrupted, shutting down...");
+                Logger.log("[DroneSubsystem-" + droneID + "]",
+                        "Interrupted => shutting down...");
                 break;
             }
         }
-
     }
 }

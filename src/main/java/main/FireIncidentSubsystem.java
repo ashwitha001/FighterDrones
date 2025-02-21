@@ -23,7 +23,6 @@ public class FireIncidentSubsystem implements Runnable {
                                  BlockingQueue<Message> incidentCompletionQueue) {
         this.incidentQueue = incidentQueue;
         this.incidentCompletionQueue = incidentCompletionQueue;
-
     }
 
     @Override
@@ -37,15 +36,13 @@ public class FireIncidentSubsystem implements Runnable {
         // Dispatch events in chronological order
         for (Message event : allEvents) {
             try {
-                // Send the event to the Scheduler
-                //System.out.println("[FireIncidentSubsystem] Sent event: " + event);
                 Logger.log("[FireIncidentSubsystem]", "Sent event: " + event);
                 incidentQueue.put(event);
 
                 // Check for any completed fires in the queue before sending next event
                 checkForCompletions();
 
-                // Short delay between sending events
+                // Short delay
                 Thread.sleep(500);
 
             } catch (InterruptedException e) {
@@ -81,7 +78,6 @@ public class FireIncidentSubsystem implements Runnable {
 
             String line;
             while ((line = reader.readLine()) != null) {
-
                 String[] parts = line.split(",");
 
                 int zoneID = Integer.parseInt(parts[0].trim());
@@ -92,7 +88,6 @@ public class FireIncidentSubsystem implements Runnable {
                         startCoords[0], startCoords[1],
                         endCoords[0],   endCoords[1]
                 );
-
                 zoneMap.put(zoneID, coords);
                 System.out.println("[FireIncidentSubsystem] Loaded zone " + zoneID + ": " + coords);
             }
@@ -100,6 +95,10 @@ public class FireIncidentSubsystem implements Runnable {
         } catch (IOException e) {
             System.err.println("[FireIncidentSubsystem] Could not read zones file: " + zonesFile);
         }
+
+        // Reserve zone 0 as base at (0,0)
+        zoneMap.put(0, new Coordinates(0, 0, 0, 0));
+        System.out.println("[FireIncidentSubsystem] Loaded zone 0: " + zoneMap.get(0) + " (base)");
     }
 
     /**
@@ -115,8 +114,7 @@ public class FireIncidentSubsystem implements Runnable {
 
             String eventLine;
             while ((eventLine = eventReader.readLine()) != null) {
-                Message message = getMessage(eventLine, timeFormatter);
-
+                Message message = buildMessage(eventLine, timeFormatter);
                 eventList.add(message);
                 System.out.println("[FireIncidentSubsystem] Received event: " + message);
             }
@@ -126,24 +124,38 @@ public class FireIncidentSubsystem implements Runnable {
         return eventList;
     }
 
-    private static Message getMessage(String eventLine, DateTimeFormatter timeFormatter) {
+    /**
+     * Builds a Message including the center coords for each zone.
+     */
+    private Message buildMessage(String eventLine, DateTimeFormatter timeFormatter) {
         String[] parts = eventLine.split(",");
-
-        String timeString = parts[0].trim();     // e.g. "14:03:15"
-        int zoneID = Integer.parseInt(parts[1]); // e.g. "3"
-        String eventType = parts[2].trim();      // e.g. "FIRE_DETECTED"
-        String severity  = parts[3].trim();      // e.g. "High"
+        String timeString = parts[0].trim();
+        int zoneID = Integer.parseInt(parts[1]);
+        String eventType = parts[2].trim();   // e.g. FIRE_DETECTED
+        String severity  = parts[3].trim();   // e.g. High
 
         LocalTime parsedTime = LocalTime.parse(timeString, timeFormatter);
 
-        Message message = new Message(
-                "ACTIVE_FIRE",
+        // Retrieve the zone corners
+        Coordinates zoneCorners = zoneMap.get(zoneID);
+        if (zoneCorners == null) {
+            // If zone not found, default to (0,0) center
+            zoneCorners = new Coordinates(0,0,0,0);
+        }
+        // Compute center
+        int centerX = (zoneCorners.getX1() + zoneCorners.getX2()) / 2;
+        int centerY = (zoneCorners.getY1() + zoneCorners.getY2()) / 2;
+
+        // Return a message storing the center coords
+        return new Message(
+                "ACTIVE_FIRE", // For iteration 2
                 zoneID,
                 severity.toUpperCase(),
                 parsedTime,
-                timeString
+                timeString,
+                centerX,
+                centerY
         );
-        return message;
     }
 
     /**
@@ -159,14 +171,12 @@ public class FireIncidentSubsystem implements Runnable {
     }
 
     /**
-     * Checks for any completion messages in incidentCompletionQueue and prints them to the screen.
+     * Checks for any completion messages in incidentCompletionQueue
      */
     private void checkForCompletions() throws InterruptedException {
         while (!incidentCompletionQueue.isEmpty()) {
             Message completedEvent = incidentCompletionQueue.take();
-            //System.out.println("[FireIncidentSubsystem] Completion confirmed: " + completedEvent);
             Logger.log("[FireIncidentSubsystem]", "Completion confirmed of: " + completedEvent);
         }
     }
 }
-

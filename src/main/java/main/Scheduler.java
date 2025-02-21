@@ -18,15 +18,17 @@ public class Scheduler implements Runnable {
     private final Map<Integer, DroneState> droneStatus;
     private final int numDrones;
 
-    public Scheduler(BlockingQueue<Message> incidentQueue, BlockingQueue<Message> dronesQueue,
-                     BlockingQueue<Message> droneCompletionQueue, BlockingQueue<Message> incidentCompletionQueue, int numDrones) {
+    public Scheduler(BlockingQueue<Message> incidentQueue,
+                     BlockingQueue<Message> dronesQueue,
+                     BlockingQueue<Message> droneCompletionQueue,
+                     BlockingQueue<Message> incidentCompletionQueue,
+                     int numDrones) {
         this.incidentQueue = incidentQueue;
         this.dronesQueue = dronesQueue;
         this.droneCompletionQueue = droneCompletionQueue;
         this.incidentCompletionQueue = incidentCompletionQueue;
         this.numDrones = numDrones;
         this.droneStatus = new HashMap<>();
-        // Initialize drone statuses
         for (int i = 0; i < numDrones; i++) {
             droneStatus.put(i, DroneState.IDLE);
         }
@@ -36,7 +38,7 @@ public class Scheduler implements Runnable {
     public void run() {
         while (true) {
             try {
-                // Receive fire event from FireIncidentSubsystem
+                // Receive a fire event from FireIncidentSubsystem
                 Message event = incidentQueue.take();
                 Logger.log("[Scheduler]", "Received Fire Event: " + event);
 
@@ -51,29 +53,49 @@ public class Scheduler implements Runnable {
 
                 if (availableDrone != -1) {
                     droneStatus.put(availableDrone, DroneState.EN_ROUTE);
-                    dronesQueue.put(event);
-                    Logger.log("[Scheduler]", "Dispatched Drone " + availableDrone + " to Zone " + event.getZoneID());
+
+                    // Build a new message that includes drone ID, so DroneSubsystem knows who it is
+                    // We also carry over the center coords from the FireIncidentSubsystem
+                    Message dispatchMsg = new Message(
+                            event.getType(),
+                            availableDrone,           // drone ID
+                            event.getZoneID(),
+                            event.getSeverity(),
+                            event.getEventTime(),
+                            event.getEventTimeString(),
+                            event.getCenterX(),
+                            event.getCenterY()
+                    );
+
+                    dronesQueue.put(dispatchMsg);
+
+                    Logger.log("[Scheduler]", "Dispatched Drone " + availableDrone
+                            + " to Zone " + event.getZoneID() + " center=("
+                            + event.getCenterX() + ", " + event.getCenterY() + ")");
                 } else {
-                    Logger.log("[Scheduler]", "No available drones for Zone " + event.getZoneID() + "! Fire queued.");
+                    Logger.log("[Scheduler]", "No available drones for Zone "
+                            + event.getZoneID() + "! Fire queued.");
                 }
 
-                // Wait for drone status updates
+                // Wait for the next drone update
                 Message droneUpdate = droneCompletionQueue.take();
                 if ("DRONE_EN_ROUTE".equals(droneUpdate.getType())) {
                     droneStatus.put(droneUpdate.getDroneID(), DroneState.EN_ROUTE);
-                    Logger.log("[Scheduler]", "Drone " + droneUpdate.getDroneID() + " is en route to Zone " + droneUpdate.getZoneID());
+                    Logger.log("[Scheduler]", "Drone " + droneUpdate.getDroneID()
+                            + " is en route to Zone " + droneUpdate.getZoneID());
                 } else if ("FIRE_EXTINGUISHED".equals(droneUpdate.getType())) {
-                    droneStatus.put(droneUpdate.getDroneID(), DroneState.RETURNING);
+                    droneStatus.put(droneUpdate.getDroneID(), DroneState.EN_ROUTE);
                     Logger.log("[Scheduler]", "Fire Extinguished at Zone " + droneUpdate.getZoneID());
                     incidentCompletionQueue.put(droneUpdate);
                 } else if ("DRONE_IDLE".equals(droneUpdate.getType())) {
                     droneStatus.put(droneUpdate.getDroneID(), DroneState.IDLE);
                     Logger.log("[Scheduler]", "Drone " + droneUpdate.getDroneID() + " is now IDLE.");
                 }
+
             } catch (InterruptedException e) {
                 e.printStackTrace();
+                break;
             }
         }
     }
 }
-
