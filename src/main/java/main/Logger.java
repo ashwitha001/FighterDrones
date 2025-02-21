@@ -1,14 +1,14 @@
 package main;
 
 /**
- * A simple logger class that logs messages with a subsystem label.
+ * Logger
+ * 1. Provides a simple method to log messages from each subsystem with a label.
+ * 2. Uses fixed-width formatting so logs are somewhat aligned.
  */
 public class Logger {
     private static final int LABEL_WIDTH = 30;
 
-    // For example: log("[main.FireIncidentSubsystem]", "Hello World");
     public static void log(String subsystem, String message) {
-        // %-30s will left-justify the subsystem label in a 30-char field.
         System.out.printf("%-" + LABEL_WIDTH + "s %s%n", subsystem, message);
     }
 }

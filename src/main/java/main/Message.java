@@ -4,8 +4,12 @@ import java.io.Serializable;
 import java.time.LocalTime;
 
 /**
- * Represents a structured message used for communication between subsystems.
- * This class is serializable to allow for message passing between threads.
+ * Message
+ * 1. Holds data passed among subsystems (Drone, Scheduler, FireIncident).
+ * 2. Stores the zone ID, severity, time, center coords.
+ * 3. Contains `remainingFoamNeeded` for partial coverage logic.
+ * 4. Has two constructors: one for FireIncidentSubsystem (no droneID),
+ *    another for DroneSubsystem/Scheduler (with droneID).
  */
 public class Message implements Serializable {
     private final String type;
@@ -18,9 +22,10 @@ public class Message implements Serializable {
     private final int centerX;
     private final int centerY;
 
+    // For partial coverage => leftover foam needed
     private double remainingFoamNeeded;
 
-    // FireIncidentSubsystem
+    // FireIncidentSubsystem constructor
     public Message(String type,
                    int zoneID,
                    String severity,
@@ -40,7 +45,7 @@ public class Message implements Serializable {
         this.remainingFoamNeeded = foamNeeded;
     }
 
-    // Scheduler/DroneSubsystem
+    // Drone/Scheduler constructor
     public Message(String type,
                    int droneID,
                    int zoneID,
@@ -63,12 +68,13 @@ public class Message implements Serializable {
 
     public String getType() { return type; }
     public int getDroneID() { return droneID; }
-    public int getZoneID() { return zoneID; }
+    public int getZoneID()  { return zoneID; }
     public String getSeverity() { return severity; }
     public LocalTime getEventTime() { return eventTime; }
     public String getEventTimeString() { return eventTimeString; }
     public int getCenterX() { return centerX; }
     public int getCenterY() { return centerY; }
+
     public double getRemainingFoamNeeded() { return remainingFoamNeeded; }
     public void setRemainingFoamNeeded(double val) { this.remainingFoamNeeded = val; }
 

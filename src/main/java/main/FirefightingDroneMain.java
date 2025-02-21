@@ -3,10 +3,16 @@ package main;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+
 /**
- * FirefightingDroneMain:
- * - Initializes and starts all subsystems as separate threads.
- * - Manages the communication between FireIncidentSubsystem, Scheduler, and DroneSubsystem.
+ * FirefightingDroneMain (Application Entry Point)
+ * 1. Reads the total number of fire events dynamically by counting lines in `events.csv`.
+ * 2. Creates all the necessary BlockingQueues for communication among subsystems.
+ * 3. Instantiates and starts:
+ *    - FireIncidentSubsystem (reads zone/event files and sends events)
+ *    - Scheduler (dispatches events to drones, tracks completions, ends program)
+ *    - One or more DroneSubsystem thread(s) (simulating drone behavior).
+ * 4. The program ends once the Scheduler detects all fires extinguished and all drones idle, then calls System.exit(0).
  */
 public class FirefightingDroneMain {
 

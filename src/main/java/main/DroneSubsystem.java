@@ -3,8 +3,15 @@ package main;
 import java.util.concurrent.BlockingQueue;
 
 /**
- * DroneSubsystem:
- * - Sends intermediate messages (DRONE_EN_ROUTE, DRONE_ARRIVED, DRONE_DROPPING, FIRE_EXTINGUISHED, DRONE_IDLE)
+ * DroneSubsystem
+ * 1. Receives dispatch from Scheduler (including leftover foam needed).
+ * 2. Checks battery feasibility for traveling out & returning.
+ * 3. If drone foam < needed => partial coverage:
+ *    - Drone uses all foamRemaining,
+ *    - leftover needed re-queued as PARTIAL_COVERAGE.
+ * 4. If drone foam >= needed => fully extinguish => FIRE_EXTINGUISHED.
+ * 5. Returns to base, refuels foam + battery => sends DRONE_IDLE.
+ * 6. Shows multi-line progress bar (10% increments) traveling out & back.
  */
 enum DroneState {
     IDLE,
@@ -13,8 +20,9 @@ enum DroneState {
 }
 
 public class DroneSubsystem implements Runnable {
-    private static final double MAX_BATTERY_SECONDS = 3600.0;
-    private static final double FOAM_CAPACITY = 15.0;
+
+    private static final double MAX_BATTERY_SECONDS = 3600.0;  // 60 min
+    private static final double FOAM_CAPACITY = 15.0;          // 15 kg foam
 
     private final int droneID;
     private final BlockingQueue<Message> dronesQueue;
@@ -22,8 +30,8 @@ public class DroneSubsystem implements Runnable {
 
     private DroneState state;
     private Coordinates currentLocation;
-    private double totalFlightTime;
-    private double foamRemaining;
+    private double totalFlightTime; // track used battery
+    private double foamRemaining;   // track foam left
 
     public DroneSubsystem(int droneID,
                           BlockingQueue<Message> dronesQueue,
@@ -42,6 +50,7 @@ public class DroneSubsystem implements Runnable {
     public void run() {
         while (true) {
             try {
+                // Wait for dispatch
                 Message dispatch = dronesQueue.take();
                 Logger.log("[DroneSubsystem-" + droneID + "]",
                         "Dispatch received: " + dispatch);
@@ -52,7 +61,7 @@ public class DroneSubsystem implements Runnable {
                         dispatch.getCenterY()
                 );
 
-                // compute travel times
+                // Calculate out & back times
                 double tOut = Utility.computeTravelTime(
                         currentLocation.getX1(), currentLocation.getY1(),
                         target.getX1(), target.getY1()
@@ -62,127 +71,136 @@ public class DroneSubsystem implements Runnable {
                         0,0
                 );
 
+                // Check battery
                 if (totalFlightTime + tOut + tBack > MAX_BATTERY_SECONDS) {
                     Logger.log("[DroneSubsystem-" + droneID + "]",
-                            "Battery insufficient => skip");
+                            "Insufficient battery => skip event!");
                     continue;
                 }
 
-                // DRONE_EN_ROUTE
-                droneCompletionQueue.put(
-                        new Message("DRONE_EN_ROUTE",
-                                droneID,
-                                dispatch.getZoneID(),
-                                dispatch.getSeverity(),
-                                dispatch.getEventTime(),
-                                dispatch.getEventTimeString(),
-                                dispatch.getCenterX(),
-                                dispatch.getCenterY(),
-                                needed
-                        )
-                );
+                // Mark DRONE_EN_ROUTE
+                droneCompletionQueue.put(new Message(
+                        "DRONE_EN_ROUTE",
+                        droneID,
+                        dispatch.getZoneID(),
+                        dispatch.getSeverity(),
+                        dispatch.getEventTime(),
+                        dispatch.getEventTimeString(),
+                        dispatch.getCenterX(),
+                        dispatch.getCenterY(),
+                        needed
+                ));
                 state = DroneState.EN_ROUTE;
 
-                // show progress to zone
+                // Travel out => show progress
                 String labelOut = String.format(
                         "DRONE-%d => from (%d,%d) to (%d,%d)",
-                        droneID, currentLocation.getX1(), currentLocation.getY1(),
+                        droneID,
+                        currentLocation.getX1(), currentLocation.getY1(),
                         target.getX1(), target.getY1()
                 );
                 Utility.showProgress(tOut, labelOut);
 
                 currentLocation = target;
                 totalFlightTime += tOut;
-
                 Logger.log("[DroneSubsystem-" + droneID + "]",
-                        "Arrived => needed= " + needed + ", foam= " + foamRemaining);
+                        "Arrived => needed=" + needed + ", foamRemaining=" + foamRemaining);
 
-                // DRONE_DROPPING
-                droneCompletionQueue.put(
-                        new Message("DRONE_DROPPING",
-                                droneID,
-                                dispatch.getZoneID(),
-                                dispatch.getSeverity(),
-                                dispatch.getEventTime(),
-                                dispatch.getEventTimeString(),
-                                dispatch.getCenterX(),
-                                dispatch.getCenterY(),
-                                needed
-                        )
-                );
+                // Mark DRONE_DROPPING
+                droneCompletionQueue.put(new Message(
+                        "DRONE_DROPPING",
+                        droneID,
+                        dispatch.getZoneID(),
+                        dispatch.getSeverity(),
+                        dispatch.getEventTime(),
+                        dispatch.getEventTimeString(),
+                        dispatch.getCenterX(),
+                        dispatch.getCenterY(),
+                        needed
+                ));
                 state = DroneState.DROPPING_AGENT;
 
                 if (foamRemaining >= needed) {
-                    // full coverage
+                    // FULL coverage => extinguish
                     double dropTime = Utility.nozzleDropTime(needed);
                     Thread.sleep((long)(dropTime * 1000));
                     foamRemaining -= needed;
                     Logger.log("[DroneSubsystem-" + droneID + "]",
                             "Fully extinguished => used " + needed
-                                    + ", left= " + foamRemaining);
+                                    + ", leftover foam=" + foamRemaining);
 
                     // FIRE_EXTINGUISHED
-                    Message doneMsg = new Message(
-                            "FIRE_EXTINGUISHED",
-                            droneID,
-                            dispatch.getZoneID(),
-                            dispatch.getSeverity(),
-                            dispatch.getEventTime(),
-                            dispatch.getEventTimeString(),
-                            dispatch.getCenterX(),
-                            dispatch.getCenterY(),
-                            0.0
+                    droneCompletionQueue.put(
+                            new Message(
+                                    "FIRE_EXTINGUISHED",
+                                    droneID,
+                                    dispatch.getZoneID(),
+                                    dispatch.getSeverity(),
+                                    dispatch.getEventTime(),
+                                    dispatch.getEventTimeString(),
+                                    dispatch.getCenterX(),
+                                    dispatch.getCenterY(),
+                                    0.0
+                            )
                     );
-                    droneCompletionQueue.put(doneMsg);
+
                 } else {
-                    // partial coverage
+                    // PARTIAL coverage
                     double partialDrop = foamRemaining;
-                    double leftover    = needed - foamRemaining;
+                    double leftover = needed - partialDrop;
                     double dropTime = Utility.nozzleDropTime(partialDrop);
                     Thread.sleep((long)(dropTime * 1000));
-
                     foamRemaining = 0.0;
-                    Logger.log("[DroneSubsystem-" + droneID + "]",
-                            "Partial coverage => dropped " + partialDrop
-                                    + ", leftover= " + leftover);
 
-                    // PARTIAL_COVERAGE => re-queue
-                    Message partialEvt = new Message(
-                            "PARTIAL_COVERAGE",
-                            droneID,
-                            dispatch.getZoneID(),
-                            dispatch.getSeverity(),
-                            dispatch.getEventTime(),
-                            dispatch.getEventTimeString(),
-                            dispatch.getCenterX(),
-                            dispatch.getCenterY(),
-                            leftover
+                    Logger.log("[DroneSubsystem-" + droneID + "]",
+                            "Partial coverage => used " + partialDrop
+                                    + ", leftover needed=" + leftover);
+
+                    droneCompletionQueue.put(
+                            new Message(
+                                    "PARTIAL_COVERAGE",
+                                    droneID,
+                                    dispatch.getZoneID(),
+                                    dispatch.getSeverity(),
+                                    dispatch.getEventTime(),
+                                    dispatch.getEventTimeString(),
+                                    dispatch.getCenterX(),
+                                    dispatch.getCenterY(),
+                                    leftover
+                            )
                     );
-                    droneCompletionQueue.put(partialEvt);
                 }
 
-                // Return to base
+                // Return to base => show progress
                 state = DroneState.EN_ROUTE;
                 String labelBack = String.format(
                         "DRONE-%d => returning from (%d,%d) to (0,0)",
-                        droneID,
-                        currentLocation.getX1(), currentLocation.getY1()
+                        droneID, currentLocation.getX1(), currentLocation.getY1()
                 );
                 Utility.showProgress(tBack, labelBack);
 
                 currentLocation = new Coordinates(0,0);
                 totalFlightTime += tBack;
                 Logger.log("[DroneSubsystem-" + droneID + "]",
-                        "At base => refill battery & foam.");
+                        "Refueling => battery & foam reset.");
 
+                // Reset battery & foam
                 totalFlightTime = 0.0;
                 foamRemaining   = FOAM_CAPACITY;
 
-                // DRONE_IDLE
+                // Mark DRONE_IDLE
                 state = DroneState.IDLE;
                 droneCompletionQueue.put(
-                        new Message("DRONE_IDLE", droneID, -1,
-                                "", null, "", 0, 0, 0.0)
+                        new Message(
+                                "DRONE_IDLE",
+                                droneID,
+                                -1,
+                                "",
+                                null,
+                                "",
+                                0, 0,
+                                0.0
+                        )
                 );
 
             } catch (InterruptedException e) {

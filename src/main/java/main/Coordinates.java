@@ -1,15 +1,17 @@
 package main;
 
 /**
- * Represents coordinates for drones (single x,y) or fire zones (two corners).
- * - If x2,y2 == null, it's a single point (drone usage).
- * - Otherwise, (x1,y1) to (x2,y2) is a fire zone rectangle.
+ * Coordinates
+ * 1. Stores either a single point (x1,y1) for a drone or
+ *    two corners (x1,y1,x2,y2) for a zone rectangle.
+ * 2. If x2,y2 are null, it's a single (x1,y1) coordinate.
+ * 3. If x2,y2 are non-null, it represents a rectangular zone.
  */
 public class Coordinates {
     private final int x1, y1;
-    private final Integer x2, y2; // Nullable for single-point usage
+    private final Integer x2, y2;
 
-    // Constructor for single points
+    // Single point
     public Coordinates(int x, int y) {
         this.x1 = x;
         this.y1 = y;
@@ -17,7 +19,7 @@ public class Coordinates {
         this.y2 = null;
     }
 
-    // Constructor for rectangles
+    // Rectangle corners
     public Coordinates(int x1, int y1, int x2, int y2) {
         this.x1 = x1;
         this.y1 = y1;
