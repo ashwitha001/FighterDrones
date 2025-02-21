@@ -1,5 +1,9 @@
 package main;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+
 /**
  * Utility => piecewise travel time, multi-line progress bar,
  * partial coverage flow times
@@ -13,7 +17,23 @@ public class Utility {
     public static final double FLOW_RATE_LPS = 9.0;
     public static final double NOZZLE_OPEN_TIME = 0.01;
 
-    // Travel time
+    /**
+     * Count how many lines (minus header) in 'events.csv' => totalFires.
+     */
+    public static int countEventLines(String eventsFile) {
+        int count = 0;
+        try (BufferedReader br = new BufferedReader(new FileReader(eventsFile))) {
+            // skip header
+            String line = br.readLine();
+            while ((line = br.readLine()) != null) {
+                count++;
+            }
+        } catch (IOException e) {
+            System.err.println("[Utility] Could not read " + eventsFile + ": " + e.getMessage());
+        }
+        return count;
+    }
+
     public static double computeTravelTime(int x1, int y1, int x2, int y2) {
         int dx = x2 - x1;
         int dy = y2 - y1;
@@ -27,7 +47,6 @@ public class Utility {
         }
     }
 
-    // Multi-line progress in 10% increments
     public static void showProgress(double totalTime, String label) throws InterruptedException {
         final int STEPS = 10;
         if (totalTime <= 0.0) {
@@ -58,7 +77,6 @@ public class Utility {
         return sb.toString();
     }
 
-    // nozzle drop time => usage / 9 L/s + 0.01
     public static double nozzleDropTime(double usage) {
         double flowTime = usage / FLOW_RATE_LPS;
         return NOZZLE_OPEN_TIME + flowTime;

@@ -9,19 +9,21 @@ import java.util.concurrent.LinkedBlockingQueue;
  * - Manages the communication between FireIncidentSubsystem, Scheduler, and DroneSubsystem.
  */
 public class FirefightingDroneMain {
+
     private static final int NUM_DRONES = 1; // or more
-    // We'll assume totalFires is the known number of lines in your events file.
-    // For demonstration, let's set a fixed number (e.g. 4).
-    private static final int TOTAL_FIRES = 4;
 
     public static void main(String[] args) {
-        // Create inter-thread queues
+        // 1) Count lines in events.csv (minus header) => totalFires
+        int totalFires = Utility.countEventLines("events.csv");
+        Logger.log("[Main]", "Detected " + totalFires + " fire events.");
+
+        // 2) Create BlockingQueues
         BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> dronesQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> droneCompletionQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
-        // FireIncidentSubsystem and Scheduler
+        // 3) Launch FireIncidentSubsystem & Scheduler
         Thread fireIncidentThread = new Thread(
                 new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue),
                 "FireIncidentSubsystem"
@@ -33,7 +35,7 @@ public class FirefightingDroneMain {
                         droneCompletionQueue,
                         incidentCompletionQueue,
                         NUM_DRONES,
-                        TOTAL_FIRES // e.g. number of events
+                        totalFires
                 ),
                 "Scheduler"
         );
@@ -41,7 +43,7 @@ public class FirefightingDroneMain {
         fireIncidentThread.start();
         schedulerThread.start();
 
-        // Create and start DroneSubsystem(s)
+        // 4) Launch DroneSubsystem(s)
         for (int i = 0; i < NUM_DRONES; i++) {
             Thread droneThread = new Thread(
                     new DroneSubsystem(i, dronesQueue, droneCompletionQueue),
@@ -50,7 +52,6 @@ public class FirefightingDroneMain {
             droneThread.start();
         }
 
-        // Let system run until Scheduler calls System.exit(0) or user kills program
-        // Typically no direct Thread.sleep() needed here, as Scheduler will end the program
+        // The Scheduler will exit the program once all fires are extinguished & drones are idle.
     }
 }

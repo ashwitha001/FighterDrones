@@ -18,7 +18,7 @@ public class Message implements Serializable {
     private final int centerX;
     private final int centerY;
 
-    private double remainingFoamNeeded; // for partial coverage
+    private double remainingFoamNeeded;
 
     // FireIncidentSubsystem
     public Message(String type,
@@ -40,7 +40,7 @@ public class Message implements Serializable {
         this.remainingFoamNeeded = foamNeeded;
     }
 
-    // Drone/Scheduler
+    // Scheduler/DroneSubsystem
     public Message(String type,
                    int droneID,
                    int zoneID,
@@ -69,14 +69,12 @@ public class Message implements Serializable {
     public String getEventTimeString() { return eventTimeString; }
     public int getCenterX() { return centerX; }
     public int getCenterY() { return centerY; }
-
     public double getRemainingFoamNeeded() { return remainingFoamNeeded; }
     public void setRemainingFoamNeeded(double val) { this.remainingFoamNeeded = val; }
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Message{");
+        StringBuilder sb = new StringBuilder("Message{");
         sb.append("time='").append(eventTimeString).append("', ");
         sb.append("type='").append(type).append("', ");
         if (droneID != -1) {

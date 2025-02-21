@@ -12,7 +12,6 @@ import java.util.concurrent.BlockingQueue;
  * - Ends program once all fires are extinguished and all drones have returned to base.
  */
 public class Scheduler implements Runnable {
-
     private final BlockingQueue<Message> incidentQueue;
     private final BlockingQueue<Message> dronesQueue;
     private final BlockingQueue<Message> droneCompletionQueue;
@@ -21,10 +20,9 @@ public class Scheduler implements Runnable {
     private final Map<Integer, DroneState> droneStatus;
     private final int numDrones;
 
-    // queue of partial or new fire events
     private final Queue<Message> pendingFires = new LinkedList<>();
 
-    private final int totalFires; // total distinct events
+    private final int totalFires;
     private int extinguishedCount = 0;
     private boolean allFiresDone = false;
 
@@ -53,23 +51,19 @@ public class Scheduler implements Runnable {
     public void run() {
         while (true) {
             try {
-                // 1) ingest new fires
                 if (!incidentQueue.isEmpty()) {
-                    Message newFire = incidentQueue.take();
-                    Logger.log("[Scheduler]", "Received Fire Event: " + newFire);
-                    pendingFires.add(newFire);
+                    Message fireEvt = incidentQueue.take();
+                    Logger.log("[Scheduler]", "Received Fire Event: " + fireEvt);
+                    pendingFires.add(fireEvt);
                 }
 
-                // 2) handle drone updates
                 if (!droneCompletionQueue.isEmpty()) {
                     Message update = droneCompletionQueue.take();
                     handleDroneUpdate(update);
                 }
 
-                // 3) attempt dispatch
                 dispatchIfPossible();
 
-                // 4) If all done, check if all drones idle => end
                 if (allFiresDone) {
                     boolean allIdle = true;
                     for (DroneState st : droneStatus.values()) {
@@ -80,7 +74,7 @@ public class Scheduler implements Runnable {
                     }
                     if (allIdle) {
                         Logger.log("[Scheduler]",
-                                "All fires done + all drones idle => End Program!");
+                                "All fires done & drones idle => End Program.");
                         System.exit(0);
                     }
                 }
@@ -96,24 +90,21 @@ public class Scheduler implements Runnable {
 
     private void handleDroneUpdate(Message m) throws InterruptedException {
         Logger.log("[Scheduler]", "Drone update => " + m);
-
         switch (m.getType()) {
             case "FIRE_EXTINGUISHED":
                 extinguishedCount++;
                 Logger.log("[Scheduler]",
                         "Fire extinguished => " + extinguishedCount + "/" + totalFires);
-
                 incidentCompletionQueue.put(m);
+
                 if (extinguishedCount >= totalFires) {
                     allFiresDone = true;
                 }
                 break;
 
             case "PARTIAL_COVERAGE":
-                // leftover foam needed
                 Logger.log("[Scheduler]", "Partial coverage => leftover= "
                         + m.getRemainingFoamNeeded());
-                // re-queue the same event
                 if (m.getRemainingFoamNeeded() > 0.0) {
                     pendingFires.add(m);
                 }
@@ -121,7 +112,8 @@ public class Scheduler implements Runnable {
 
             case "DRONE_IDLE":
                 droneStatus.put(m.getDroneID(), DroneState.IDLE);
-                Logger.log("[Scheduler]", "Drone " + m.getDroneID() + " => IDLE");
+                Logger.log("[Scheduler]",
+                        "Drone " + m.getDroneID() + " => IDLE");
                 break;
 
             case "DRONE_EN_ROUTE":
@@ -133,14 +125,14 @@ public class Scheduler implements Runnable {
                 break;
 
             default:
-                Logger.log("[Scheduler]", "Unknown update => " + m.getType());
+                Logger.log("[Scheduler]", "Unknown => " + m.getType());
         }
     }
 
     private void dispatchIfPossible() throws InterruptedException {
         if (pendingFires.isEmpty()) return;
 
-        // find an idle drone
+        // find idle drone
         int idleDrone = -1;
         for (Map.Entry<Integer, DroneState> e : droneStatus.entrySet()) {
             if (e.getValue() == DroneState.IDLE) {
@@ -148,15 +140,13 @@ public class Scheduler implements Runnable {
                 break;
             }
         }
-        if (idleDrone == -1) return; // no idle drone
+        if (idleDrone == -1) return;
 
-        // pick next pending
+        // pop next fire
         Message fireEvt = pendingFires.poll();
 
-        // mark drone EN_ROUTE
         droneStatus.put(idleDrone, DroneState.EN_ROUTE);
 
-        // build dispatch with droneID
         Message dispatchMsg = new Message(
                 fireEvt.getType(),
                 idleDrone,
@@ -166,10 +156,11 @@ public class Scheduler implements Runnable {
                 fireEvt.getEventTimeString(),
                 fireEvt.getCenterX(),
                 fireEvt.getCenterY(),
-                fireEvt.getRemainingFoamNeeded() // carry leftover
+                fireEvt.getRemainingFoamNeeded()
         );
 
-        Logger.log("[Scheduler]", "Dispatched Drone " + idleDrone + " => " + fireEvt);
+        Logger.log("[Scheduler]",
+                "Dispatched Drone " + idleDrone + " => " + fireEvt);
         dronesQueue.put(dispatchMsg);
     }
 }
