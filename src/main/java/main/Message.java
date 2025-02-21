@@ -1,66 +1,92 @@
 package main;
 
 import java.io.Serializable;
+import java.time.LocalTime;
 
 /**
  * Represents a structured message used for communication between subsystems.
  * This class is serializable to allow for message passing between threads.
- * Ensures a future-proof design by encapsulating message fields for when transitioning to UDP.
  */
 public class Message implements Serializable {
-    private final String type;     // "FIRE_EVENT", "DRONE_STATUS", etc.
-    private final int droneID;     // Drone ID (-1 if not applicable)
-    private final int zoneID;      // Fire zone ID
-    private final String severity; // "HIGH", "MODERATE", "LOW"
-    private final java.time.LocalTime eventTime; // Parsed time
-    private final String eventTimeString;      // Original string from CSV
+    private final String type;
+    private final int droneID;
+    private final int zoneID;
+    private final String severity;
+    private final LocalTime eventTime;
+    private final String eventTimeString;
 
-    // Constructor for FireIncidentSubsystem messages (no droneID needed)
-    public Message(String type, int zoneID, String severity, java.time.LocalTime eventTime, String eventTimeString) {
+    private final int centerX;
+    private final int centerY;
+
+    private double remainingFoamNeeded; // for partial coverage
+
+    // FireIncidentSubsystem
+    public Message(String type,
+                   int zoneID,
+                   String severity,
+                   LocalTime eventTime,
+                   String eventTimeString,
+                   int centerX,
+                   int centerY,
+                   double foamNeeded) {
         this.type = type;
-        this.droneID = -1; // No drone associated
+        this.droneID = -1;
         this.zoneID = zoneID;
         this.severity = severity;
         this.eventTime = eventTime;
         this.eventTimeString = eventTimeString;
+        this.centerX = centerX;
+        this.centerY = centerY;
+        this.remainingFoamNeeded = foamNeeded;
     }
 
-    // Constructor for Scheduler and DroneSubsystem messages (includes droneID)
-    public Message(String type, int droneID, int zoneID, String severity, java.time.LocalTime eventTime, String eventTimeString) {
+    // Drone/Scheduler
+    public Message(String type,
+                   int droneID,
+                   int zoneID,
+                   String severity,
+                   LocalTime eventTime,
+                   String eventTimeString,
+                   int centerX,
+                   int centerY,
+                   double foamNeeded) {
         this.type = type;
         this.droneID = droneID;
         this.zoneID = zoneID;
         this.severity = severity;
         this.eventTime = eventTime;
         this.eventTimeString = eventTimeString;
+        this.centerX = centerX;
+        this.centerY = centerY;
+        this.remainingFoamNeeded = foamNeeded;
     }
 
-    public String getType() {
-        return type;
-    }
-    public int getDroneID() {
-        return droneID;
-    }
-    public int getZoneID() {
-        return zoneID;
-    }
-    public String getSeverity() {
-        return severity;
-    }
-    public java.time.LocalTime getEventTime() {
-        return eventTime;
-    }
-    public String getEventTimeString() {
-        return eventTimeString;
-    }
+    public String getType() { return type; }
+    public int getDroneID() { return droneID; }
+    public int getZoneID() { return zoneID; }
+    public String getSeverity() { return severity; }
+    public LocalTime getEventTime() { return eventTime; }
+    public String getEventTimeString() { return eventTimeString; }
+    public int getCenterX() { return centerX; }
+    public int getCenterY() { return centerY; }
+
+    public double getRemainingFoamNeeded() { return remainingFoamNeeded; }
+    public void setRemainingFoamNeeded(double val) { this.remainingFoamNeeded = val; }
 
     @Override
     public String toString() {
-        return "Message{" +
-                "time='" + eventTimeString + "', " +
-                "type='" + type + "', " +
-                (droneID != -1 ? "droneID=" + droneID + ", " : "") +
-                "zoneID=" + zoneID + ", " +
-                "severity='" + severity + "'}";
+        StringBuilder sb = new StringBuilder();
+        sb.append("Message{");
+        sb.append("time='").append(eventTimeString).append("', ");
+        sb.append("type='").append(type).append("', ");
+        if (droneID != -1) {
+            sb.append("droneID=").append(droneID).append(", ");
+        }
+        sb.append("zoneID=").append(zoneID).append(", ");
+        sb.append("severity='").append(severity).append("', ");
+        sb.append("center=(").append(centerX).append(",").append(centerY).append("), ");
+        sb.append("remainingFoamNeeded=").append(remainingFoamNeeded);
+        sb.append("}");
+        return sb.toString();
     }
 }
