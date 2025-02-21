@@ -8,25 +8,27 @@ import java.time.LocalTime;
  * This class is serializable to allow for message passing between threads.
  */
 public class Message implements Serializable {
-    private final String type;     // e.g. "ACTIVE_FIRE", "DRONE_EN_ROUTE", "FIRE_EXTINGUISHED"
-    private final int droneID;     // Drone ID (-1 if not applicable)
-    private final int zoneID;      // Fire zone ID
-    private final String severity; // e.g. "HIGH", "MODERATE"
+    private final String type;
+    private final int droneID;
+    private final int zoneID;
+    private final String severity;
     private final LocalTime eventTime;
     private final String eventTimeString;
 
-    // Store the center coords that the drone should travel to
     private final int centerX;
     private final int centerY;
 
-    // Constructor for FireIncidentSubsystem => no droneID
+    private double remainingFoamNeeded; // for partial coverage
+
+    // FireIncidentSubsystem
     public Message(String type,
                    int zoneID,
                    String severity,
                    LocalTime eventTime,
                    String eventTimeString,
                    int centerX,
-                   int centerY) {
+                   int centerY,
+                   double foamNeeded) {
         this.type = type;
         this.droneID = -1;
         this.zoneID = zoneID;
@@ -35,9 +37,10 @@ public class Message implements Serializable {
         this.eventTimeString = eventTimeString;
         this.centerX = centerX;
         this.centerY = centerY;
+        this.remainingFoamNeeded = foamNeeded;
     }
 
-    // Constructor for Scheduler/DroneSubsystem => includes droneID
+    // Drone/Scheduler
     public Message(String type,
                    int droneID,
                    int zoneID,
@@ -45,7 +48,8 @@ public class Message implements Serializable {
                    LocalTime eventTime,
                    String eventTimeString,
                    int centerX,
-                   int centerY) {
+                   int centerY,
+                   double foamNeeded) {
         this.type = type;
         this.droneID = droneID;
         this.zoneID = zoneID;
@@ -54,16 +58,7 @@ public class Message implements Serializable {
         this.eventTimeString = eventTimeString;
         this.centerX = centerX;
         this.centerY = centerY;
-    }
-
-    // Another convenience constructor if you want no center for e.g. DRONE_IDLE
-    public Message(String type,
-                   int droneID,
-                   int zoneID,
-                   String severity,
-                   LocalTime eventTime,
-                   String eventTimeString) {
-        this(type, droneID, zoneID, severity, eventTime, eventTimeString, 0, 0);
+        this.remainingFoamNeeded = foamNeeded;
     }
 
     public String getType() { return type; }
@@ -75,13 +70,23 @@ public class Message implements Serializable {
     public int getCenterX() { return centerX; }
     public int getCenterY() { return centerY; }
 
+    public double getRemainingFoamNeeded() { return remainingFoamNeeded; }
+    public void setRemainingFoamNeeded(double val) { this.remainingFoamNeeded = val; }
+
     @Override
     public String toString() {
-        return "Message{" +
-                "time='" + eventTimeString + "', type='" + type + "', " +
-                (droneID != -1 ? "droneID=" + droneID + ", " : "") +
-                "zoneID=" + zoneID + ", severity='" + severity + "', " +
-                "center=(" + centerX + ", " + centerY + ")" +
-                "}";
+        StringBuilder sb = new StringBuilder();
+        sb.append("Message{");
+        sb.append("time='").append(eventTimeString).append("', ");
+        sb.append("type='").append(type).append("', ");
+        if (droneID != -1) {
+            sb.append("droneID=").append(droneID).append(", ");
+        }
+        sb.append("zoneID=").append(zoneID).append(", ");
+        sb.append("severity='").append(severity).append("', ");
+        sb.append("center=(").append(centerX).append(",").append(centerY).append("), ");
+        sb.append("remainingFoamNeeded=").append(remainingFoamNeeded);
+        sb.append("}");
+        return sb.toString();
     }
 }

@@ -1,92 +1,66 @@
 package main;
 
 /**
- * Utility class providing:
- * 1) Piecewise travel time calculation (0->70->0).
- * 2) A multi-line progress display, labeling each line with the given description.
+ * Utility => piecewise travel time, multi-line progress bar,
+ * partial coverage flow times
  */
 public class Utility {
+    public static final double MAX_SPEED_MS = 19.44;
+    public static final double ACC_DEC_TIME = 3.0;
+    public static final double ACCEL = MAX_SPEED_MS / ACC_DEC_TIME;
+    public static final double FULL_ACCEL_DECEL_DIST = 58.32;
 
-    // Speed & acceleration constants
-    private static final double MAX_SPEED_MS = 19.44;         // 70 km/h in m/s
-    private static final double ACC_DEC_TIME = 3.0;           // 3s accelerate or decelerate
-    private static final double ACCEL = MAX_SPEED_MS / ACC_DEC_TIME; // ~6.48 m/s^2
-    private static final double FULL_ACCEL_DECEL_DIST = 58.32; // Distance needed for full 0->70->0
+    public static final double FLOW_RATE_LPS = 9.0;
+    public static final double NOZZLE_OPEN_TIME = 0.01;
 
-    /**
-     * Computes travel time from (x1,y1) to (x2,y2) in meters
-     * using the piecewise formula for 70 km/h w/ 3s accel & decel.
-     */
+    // Travel time
     public static double computeTravelTime(int x1, int y1, int x2, int y2) {
         int dx = x2 - x1;
         int dy = y2 - y1;
-        double dist = Math.sqrt(dx * dx + dy * dy);
+        double dist = Math.sqrt(dx*dx + dy*dy);
 
         if (dist >= FULL_ACCEL_DECEL_DIST) {
-            // 6s total for full accel+decel, plus cruise
             double cruiseDist = dist - FULL_ACCEL_DECEL_DIST;
-            double cruiseTime = cruiseDist / MAX_SPEED_MS;
-            return 6.0 + cruiseTime;
+            return 6.0 + (cruiseDist / MAX_SPEED_MS);
         } else {
-            // never hits top speed => symmetrical accel/decel
             return 2.0 * Math.sqrt(dist / ACCEL);
         }
     }
 
-    /**
-     * Displays a multi-line progress bar for totalTime (seconds).
-     * Each line includes the label, so user knows what this bar refers to.
-     *
-     * Example output:
-     *   [#-------------------] 5%  DRONE-0 => from (0,0) to (350,300)
-     *   [##------------------] 10% DRONE-0 => from (0,0) to (350,300)
-     *   ...
-     *   [####################] 100% DRONE-0 => from (0,0) to (350,300)
-     *
-     * @param totalTime total time in seconds
-     * @param numSteps how many lines/updates to print
-     * @param label e.g. "DRONE-0 => from (0,0) to (350,300)"
-     */
-    public static void showProgress(double totalTime, int numSteps, String label) throws InterruptedException {
-        if (totalTime <= 0.0 || numSteps <= 0) {
-            // If no travel needed or invalid steps, just print immediate done
-            System.out.println("[####################] 100% " + label);
+    // Multi-line progress in 10% increments
+    public static void showProgress(double totalTime, String label) throws InterruptedException {
+        final int STEPS = 10;
+        if (totalTime <= 0.0) {
+            System.out.println("[####################] 100%  " + label);
             return;
         }
-
-        double stepDuration = totalTime / numSteps;
-
-        for (int i = 0; i <= numSteps; i++) {
-            double fraction = i / (double) numSteps; // 0..1
-            String bar = buildProgressBar(fraction);
-
-            // e.g.: "[###------] 15%  DRONE-0 => from (0,0) to (350,300)"
-            int pct = (int)(fraction * 100);
+        double stepDur = totalTime / STEPS;
+        for (int i = 0; i <= STEPS; i++) {
+            double frac = i / (double)STEPS;
+            int pct = (int)(frac * 100);
+            String bar = buildBar(frac);
             System.out.printf("%s %d%%  %s%n", bar, pct, label);
 
-            if (i < numSteps) {
-                Thread.sleep((long) (stepDuration * 500)); // REAL TIME WOULD BE 1000, but 500 for testing speed
+            if (i < STEPS) {
+                Thread.sleep((long)(stepDur * 1000));
             }
         }
     }
 
-    /**
-     * Builds a bar of width 20, e.g. "[#####-----]"
-     *
-     * @param fraction in [0..1]
-     * @return bar string
-     */
-    private static String buildProgressBar(double fraction) {
-        final int BAR_WIDTH = 20;
-
-        int filled = (int) Math.round(BAR_WIDTH * fraction);
-        int empty  = BAR_WIDTH - filled;
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("[");
-        for (int i = 0; i < filled; i++) sb.append("#");
-        for (int i = 0; i < empty; i++) sb.append("-");
+    private static String buildBar(double fraction) {
+        final int WIDTH = 20;
+        int fill = (int)Math.round(WIDTH * fraction);
+        int empty = WIDTH - fill;
+        StringBuilder sb = new StringBuilder("[");
+        for (int i=0; i<fill; i++) sb.append("#");
+        for (int i=0; i<empty; i++) sb.append("-");
         sb.append("]");
         return sb.toString();
+    }
+
+    // nozzle drop time => usage / 9 L/s + 0.01
+    public static double nozzleDropTime(double usage) {
+        double flowTime = usage / FLOW_RATE_LPS;
+        return NOZZLE_OPEN_TIME + flowTime;
     }
 }
