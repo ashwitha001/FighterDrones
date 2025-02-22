@@ -2,10 +2,10 @@ package main;
 
 /**
  * DroppingAgentState:
- * - Drone is actively dropping agent.
- * - partial coverage => leftover re-queued
- * - full coverage => FIRE_EXTINGUISHED
- * - Then we do => RETURN_TO_BASE event
+ * - The drone is actively dropping foam.
+ * - If foam < needed => PARTIAL_COVERAGE => leftover re-queued in scheduler.
+ * - If foam >= needed => FIRE_EXTINGUISHED.
+ * - Then => RETURN_TO_BASE => transitions to EN_ROUTE => eventually IDLE.
  */
 public class DroppingAgentState implements DroneState {
 
@@ -18,7 +18,7 @@ public class DroppingAgentState implements DroneState {
 
             default:
                 Logger.log("[DroppingAgentState]",
-                        "Ignoring event " + event + " while DROPPING_AGENT.");
+                        "Ignoring event " + event + " while DROPPING.");
         }
     }
 
@@ -26,7 +26,7 @@ public class DroppingAgentState implements DroneState {
         double needed    = msg.getRemainingFoamNeeded();
         double droneFoam = subsystem.getFoamRemaining();
 
-        // DRONE_DROPPING => notify scheduler
+        // Mark DRONE_DROPPING
         subsystem.getDroneCompletionQueue().put(new Message(
                 "DRONE_DROPPING",
                 subsystem.getDroneID(),
@@ -40,7 +40,7 @@ public class DroppingAgentState implements DroneState {
         ));
 
         if (droneFoam >= needed) {
-            // full coverage
+            // fully extinguish
             double dropTime = Utility.nozzleDropTime(needed);
             Thread.sleep((long)(dropTime * 1000));
             subsystem.setFoamRemaining(droneFoam - needed);
@@ -63,8 +63,8 @@ public class DroppingAgentState implements DroneState {
         } else {
             // partial coverage
             double partialDrop = droneFoam;
-            double leftover = needed - partialDrop;
-            double dropTime = Utility.nozzleDropTime(partialDrop);
+            double leftover    = needed - partialDrop;
+            double dropTime    = Utility.nozzleDropTime(partialDrop);
             Thread.sleep((long)(dropTime * 1000));
             subsystem.setFoamRemaining(0.0);
 
@@ -84,9 +84,9 @@ public class DroppingAgentState implements DroneState {
             ));
         }
 
-        // After dropping => RETURN_TO_BASE
+        // Return to base => transitions to EN_ROUTE => ARRIVE_BASE => IDLE
         Logger.log("[DroppingAgentState]", "Dropping done => RETURN_TO_BASE event.");
-        subsystem.setState(new EnRouteState());
-        subsystem.getState().handleEvent(subsystem, DroneEvent.RETURN_TO_BASE, msg);
+        subsystem.setState("EN_ROUTE");
+        subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.RETURN_TO_BASE, msg);
     }
 }
