@@ -7,7 +7,7 @@ This submission includes:
 - **"FighterDrones"** folder: Folder containing all source code, including:
     - `src/`: Main application code
     - `tests/`: Unit tests
-- **"Sequence Diagram.png"**: UML sequence diagram
+- **"Sequence Diagram2.png"**: UML sequence diagram that has a successful fire extinguishment scenario
 - **"Class Diagram.png"**: UML class diagram
 
 
