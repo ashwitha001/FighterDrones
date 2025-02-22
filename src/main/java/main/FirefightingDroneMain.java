@@ -15,7 +15,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * 4. The program ends once the Scheduler detects all fires extinguished and all drones idle, then calls System.exit(0).
  */
 public class FirefightingDroneMain {
-    private static final int NUM_DRONES = 4; // can be more
+    private static final int NUM_DRONES = 1; // can be more
 
     public static void main(String[] args) {
         // Count lines => totalFires
