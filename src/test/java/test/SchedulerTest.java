@@ -27,7 +27,7 @@ public class SchedulerTest {
         BlockingQueue<Message> droneCompletionQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
-        schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "main.Scheduler");
+        schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue,1,1), "main.Scheduler");
 
     }
 

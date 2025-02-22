@@ -25,7 +25,7 @@ public class DroneSubsystemTest {
     public void setUp() {
         dronesQueue = new LinkedBlockingQueue<>();
         droneCompletionQueue = new LinkedBlockingQueue<>();
-        droneSubsystem = new DroneSubsystem(dronesQueue, droneCompletionQueue);
+        droneSubsystem = new DroneSubsystem(1, dronesQueue, droneCompletionQueue);
 
         droneSubsystemThread = new Thread(droneSubsystem);
         droneSubsystemThread.start();
@@ -36,14 +36,14 @@ public class DroneSubsystemTest {
     public void messageTest() throws InterruptedException {
 
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
-        Message message = new Message("ACTIVE_FIRE",1,"HIGH", LocalTime.parse("12:30:00", timeFormatter), "12:30:00");
+        Message message = new Message("ACTIVE_FIRE", 1,1,"HIGH", LocalTime.parse("12:30:00", timeFormatter), "12:30:00",3,4,10);
 
         dronesQueue.put(message);
         Message done = droneCompletionQueue.poll(5, TimeUnit.SECONDS);
 
         assertNotNull(done);
         assertEquals(1, done.getZoneID());
-        assertEquals("FIRE_EXTINGUISHED", done.getType());
+        assertEquals("DRONE_EN_ROUTE", done.getType());
     }
 
     public void murderTest() throws InterruptedException {

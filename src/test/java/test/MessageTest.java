@@ -27,7 +27,7 @@ public class MessageTest {
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         timeString = "14:50:45";
         localTime = LocalTime.parse(timeString, timeFormatter);
-        msg  = new Message("ACTIVE_FIRE",1,"HIGH", localTime, timeString);
+        msg  = new Message("ACTIVE_FIRE",1,1, "HIGH", localTime, timeString,3,4,10);
     }
 
     /**
@@ -40,11 +40,21 @@ public class MessageTest {
     }
 
     /**
+     * Testing getter for droneID for Message
+     *
+     */
+    @Test
+    void testDroneID(){
+        assertEquals(1,msg.getDroneID());
+    }
+
+
+    /**
      * Testing getter for zoneID for Message
      *
      */
     @Test
-    void testID(){
+    void testZoneID(){
         assertEquals(1,msg.getZoneID());
     }
 
@@ -76,12 +86,39 @@ public class MessageTest {
     }
 
     /**
+     * Testing getter for center X for Message
+     *
+     */
+    @Test
+    void testCenterX(){
+        assertEquals(3,msg.getCenterX());
+    }
+
+    /**
+     * Testing getter for center Y for Message
+     *
+     */
+    @Test
+    void testCenterY(){
+        assertEquals(4,msg.getCenterY());
+    }
+
+    /**
+     * Testing getter for remaining foam for Message
+     *
+     */
+    @Test
+    void testFoam(){
+        assertEquals(10,msg.getRemainingFoamNeeded());
+    }
+
+    /**
      * Testing toString for Message
      *
      */
     @Test
     void testMessageString(){
-        String expectedString = "main.Message{time='14:50:45', type='ACTIVE_FIRE', zoneID=1, severity='HIGH'}";
+        String expectedString = "Message{time='14:50:45', type='ACTIVE_FIRE', droneID=1, zoneID=1, severity='HIGH', center=(3,4), remainingFoamNeeded=10.0}";
         assertEquals(expectedString,msg.toString());
     }
 }
