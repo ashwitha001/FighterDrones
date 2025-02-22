@@ -15,11 +15,9 @@ import java.util.concurrent.BlockingQueue;
  * 5. Continues listening for completions until interrupted or program ends.
  */
 public class FireIncidentSubsystem implements Runnable {
-
     private final BlockingQueue<Message> incidentQueue;
     private final BlockingQueue<Message> incidentCompletionQueue;
 
-    // Maps zoneID -> Coordinates (rectangular corners or base)
     private final Map<Integer, Coordinates> zoneMap = new HashMap<>();
 
     public FireIncidentSubsystem(BlockingQueue<Message> incidentQueue,
@@ -30,30 +28,26 @@ public class FireIncidentSubsystem implements Runnable {
 
     @Override
     public void run() {
-        // 1) Load zone data
         loadZoneData("zones.csv");
-
-        // 2) Load events
         List<Message> allEvents = loadAndParseEvents("events.csv");
 
-        // 3) Dispatch events in chronological order
-        for (Message event : allEvents) {
+        // dispatch
+        for (Message e : allEvents) {
             try {
-                Logger.log("[FireIncidentSubsystem]", "Sent event: " + event);
-                incidentQueue.put(event);
+                Logger.log("[FireIncidentSubsystem]", "Sent event: " + e);
+                incidentQueue.put(e);
 
-                // Check if any completions arrived
                 checkForCompletions();
                 Thread.sleep(500);
 
-            } catch (InterruptedException e) {
-                System.err.println("[FireIncidentSubsystem] Interrupted => shutting down...");
+            } catch (InterruptedException ex) {
+                System.err.println("[FireIncidentSubsystem] Interrupted => shutting down.");
                 Thread.currentThread().interrupt();
                 break;
             }
         }
 
-        // 4) After dispatch, keep listening for completions
+        // keep listening for completions
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 checkForCompletions();
@@ -67,14 +61,9 @@ public class FireIncidentSubsystem implements Runnable {
         System.out.println("[FireIncidentSubsystem] Exiting...");
     }
 
-    /**
-     * Loads zone data from `zones.csv` (skipping header).
-     * zoneMap is updated with each zone's corners, plus zone 0 => base (0,0).
-     */
-    private void loadZoneData(String fileName) {
-        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
-            // skip header
-            br.readLine();
+    private void loadZoneData(String filename) {
+        try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
+            br.readLine(); // skip header
             String line;
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split(",");
@@ -84,31 +73,23 @@ public class FireIncidentSubsystem implements Runnable {
 
                 Coordinates coords = new Coordinates(startC[0], startC[1], endC[0], endC[1]);
                 zoneMap.put(zoneID, coords);
-
                 System.out.println("[FireIncidentSubsystem] Loaded zone " + zoneID + ": " + coords);
             }
             System.out.println("====================================================");
         } catch (IOException e) {
-            System.err.println("[FireIncidentSubsystem] Could not read " + fileName);
+            System.err.println("[FireIncidentSubsystem] Could not read " + filename);
         }
 
-        // Reserve zone 0 => base
+        // zone 0 => base
         zoneMap.put(0, new Coordinates(0,0,0,0));
         System.out.println("[FireIncidentSubsystem] Loaded zone 0: " + zoneMap.get(0) + " (base)");
     }
 
-    /**
-     * Loads and parses events from `events.csv` (skipping header).
-     * Each line => (time, zoneID, eventType, severity).
-     * Builds a Message with 'remainingFoamNeeded' mapped from severity (10,20,30).
-     */
-    private List<Message> loadAndParseEvents(String fileName) {
+    private List<Message> loadAndParseEvents(String filename) {
         List<Message> events = new ArrayList<>();
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm:ss");
-        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
-            // skip header
-            br.readLine();
-
+        try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
+            br.readLine(); // skip header
             String line;
             while ((line = br.readLine()) != null) {
                 Message m = buildMessage(line, fmt);
@@ -116,23 +97,20 @@ public class FireIncidentSubsystem implements Runnable {
                 System.out.println("[FireIncidentSubsystem] Received event: " + m);
             }
         } catch (IOException e) {
-            System.err.println("[FireIncidentSubsystem] Error reading " + fileName + ": " + e.getMessage());
+            System.err.println("[FireIncidentSubsystem] Error reading " + filename + ": " + e.getMessage());
         }
         return events;
     }
 
-    /**
-     * Builds a single Message for an event line, calculating center coords from zoneMap
-     * and deciding foam usage based on severity.
-     */
     private Message buildMessage(String line, DateTimeFormatter fmt) {
         String[] parts = line.split(",");
         String timeStr = parts[0].trim();
         int zoneID     = Integer.parseInt(parts[1].trim());
-        String evType  = parts[2].trim();
-        String severity= parts[3].trim();
+        String eventType = parts[2].trim();
+        String severity  = parts[3].trim();
 
         LocalTime parsedTime = LocalTime.parse(timeStr, fmt);
+
         Coordinates zC = zoneMap.getOrDefault(zoneID, new Coordinates(0,0,0,0));
         int cx = (zC.getX1() + zC.getX2())/2;
         int cy = (zC.getY1() + zC.getY2())/2;
@@ -165,16 +143,11 @@ public class FireIncidentSubsystem implements Runnable {
         return new int[]{x,y};
     }
 
-    /**
-     * Checks the incidentCompletionQueue for any FIRE_EXTINGUISHED messages,
-     * logs them as confirmation of completion.
-     */
     private void checkForCompletions() throws InterruptedException {
         while (!incidentCompletionQueue.isEmpty()) {
             Message done = incidentCompletionQueue.take();
             if ("FIRE_EXTINGUISHED".equals(done.getType())) {
-                Logger.log("[FireIncidentSubsystem]",
-                        "Completion confirmed: " + done);
+                Logger.log("[FireIncidentSubsystem]", "Completion confirmed: " + done);
             }
         }
     }

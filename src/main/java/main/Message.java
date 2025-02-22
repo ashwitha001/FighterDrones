@@ -22,8 +22,7 @@ public class Message implements Serializable {
     private final int centerX;
     private final int centerY;
 
-    // For partial coverage => leftover foam needed
-    private double remainingFoamNeeded;
+    private double remainingFoamNeeded; // partial coverage leftover
 
     // FireIncidentSubsystem constructor
     public Message(String type,
@@ -68,7 +67,7 @@ public class Message implements Serializable {
 
     public String getType() { return type; }
     public int getDroneID() { return droneID; }
-    public int getZoneID()  { return zoneID; }
+    public int getZoneID() { return zoneID; }
     public String getSeverity() { return severity; }
     public LocalTime getEventTime() { return eventTime; }
     public String getEventTimeString() { return eventTimeString; }
@@ -76,7 +75,7 @@ public class Message implements Serializable {
     public int getCenterY() { return centerY; }
 
     public double getRemainingFoamNeeded() { return remainingFoamNeeded; }
-    public void setRemainingFoamNeeded(double val) { this.remainingFoamNeeded = val; }
+    public void setRemainingFoamNeeded(double v) { this.remainingFoamNeeded = v; }
 
     @Override
     public String toString() {
