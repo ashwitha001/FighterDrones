@@ -13,10 +13,10 @@ This submission includes:
 
 ## Team Members & Responsibilities
 - **Quinn Vo**: README file, Sequence Diagram (When there is a fire event happens)
-- **Ashwitha Ala**: Code base
+- **Ashwitha Ala**: Class Diagram
 - **Michael Palummieri**: Code base
 - **Tudor Lungu**: Unit tests
-- **Samson Ha**: Class Diagram
+- **Samson Ha**: State Machine Diagram
 - **Christina Dang**: Unit tests
 
 ## Set up Instructions
