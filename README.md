@@ -9,8 +9,8 @@ This submission includes:
     - `tests/`: Unit tests
 - **"SequenceDiagram2.png"**: UML sequence diagram that has a successful fire extinguishment scenario
 - **"Iteration2ClassDiagram.png"**: UML class diagram
-- **"StateMachineDiagramDrone.png"**: State Machine Diagram for Drone
-- **"StateMachineDiagramScheduler.png"**: State Machine Diagram for Scheduler
+- **"Iteration2StateMachineDrone.png"**: State Machine Diagram for Drone
+- **"Iteration2StateMachineScheduler.png"**: State Machine Diagram for Scheduler
 
 ## Team Members & Responsibilities
 - **Quinn Vo**: README file, Sequence Diagram (When there is a fire event happens)
