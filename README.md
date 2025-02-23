@@ -7,9 +7,10 @@ This submission includes:
 - **"FighterDrones"** folder: Folder containing all source code, including:
     - `src/`: Main application code
     - `tests/`: Unit tests
-- **"Sequence Diagram2.png"**: UML sequence diagram that has a successful fire extinguishment scenario
-- **"Class Diagram.png"**: UML class diagram
-
+- **"SequenceDiagram2.png"**: UML sequence diagram that has a successful fire extinguishment scenario
+- **"Iteration2ClassDiagram.png"**: UML class diagram
+- **"StateMachineDiagramDrone.png"**: State Machine Diagram for Drone
+- **"StateMachineDiagramScheduler.png"**: State Machine Diagram for Scheduler
 
 ## Team Members & Responsibilities
 - **Quinn Vo**: README file, Sequence Diagram (When there is a fire event happens)
@@ -35,3 +36,4 @@ This submission includes:
     4. test.SchedulerTest.java
     5. test.LoggerTest.java
     6. test.DroneSubsystemTest.java
+    7. test.UtilityTest.java
