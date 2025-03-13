@@ -1,6 +1,6 @@
 # FighterDrones
 **SYSC3303 A4 - Group 4**
-> Iteration 1
+> Iteration 3
 
 This submission includes:
 - A README file

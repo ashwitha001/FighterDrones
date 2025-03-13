@@ -99,6 +99,9 @@ public class FireIncidentSubsystem implements Runnable {
         } catch (IOException e) {
             System.err.println("[FireIncidentSubsystem] Error reading " + filename + ": " + e.getMessage());
         }
+
+        // Sort events by severity (HIGH -> MODERATE -> LOW)
+        events.sort((a, b) -> firePriority(b) - firePriority(a));
         return events;
     }
 
@@ -151,4 +154,14 @@ public class FireIncidentSubsystem implements Runnable {
             }
         }
     }
+
+    private static int firePriority(Message msg) {
+        return switch (msg.getSeverity()) {
+            case "HIGH" -> 3;
+            case "MODERATE" -> 2;
+            case "LOW" -> 1;
+            default -> 0;
+        };
+    }
+
 }
