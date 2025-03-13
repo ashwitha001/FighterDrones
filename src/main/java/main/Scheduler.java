@@ -121,8 +121,9 @@ public class Scheduler implements Runnable {
                 break;
 
             case "PARTIAL_COVERAGE":
-                // re-queue leftover
-                if (m.getRemainingFoamNeeded() > 0) {
+                double remainingFoam = m.getRemainingFoamNeeded();
+                if (remainingFoam > 0) {
+                    Logger.log("[Scheduler]", "Requeueing fire " + m.getZoneID() + " with " + remainingFoam + " foam needed.");
                     pendingFires.add(m);
                 }
                 break;
@@ -150,14 +151,18 @@ public class Scheduler implements Runnable {
 
             double foamNeeded = fireEvt.getRemainingFoamNeeded();
             double foamPerDrone = DroneSubsystem.getFoamCapacity();
-            int requiredDrones = (int) Math.ceil(foamNeeded / foamPerDrone);
-            int assignedDrones = 0;
+            int requiredDrones = (int) Math.ceil(foamNeeded / foamPerDrone);  // calculates number of drones needed
+            List<Integer> assignedDrones = new ArrayList<>();
 
-            for (int droneID : availableDrones) {
+            for (int i = 0; i < Math.min(requiredDrones, availableDrones.size()); i++) {
+                assignedDrones.add(availableDrones.get(i));
+            }
+
+            for (int droneID : assignedDrones) {
                 droneStatus.put(droneID, "EN_ROUTE");
-                if (assignedDrones >= requiredDrones) break;
 
-               // if (droneFoamLevels.get(droneID) < foamPerDrone) continue; // Skip low-foam drones
+                double foamToUse = Math.min(foamPerDrone, foamNeeded); // Each drone drops at most its capacity
+                foamNeeded -= foamToUse; // Reduce the remaining foam needed
 
                 // build dispatch message w/ droneID
                 Message dispatchMsg = new Message(
@@ -169,20 +174,31 @@ public class Scheduler implements Runnable {
                         fireEvt.getEventTimeString(),
                         fireEvt.getCenterX(),
                         fireEvt.getCenterY(),
-                        fireEvt.getRemainingFoamNeeded()
+                        foamToUse
                 );
 
                 Logger.log("[Scheduler]",
                         "Dispatched Drone " + droneID + " => " + fireEvt);
 
                 dronesQueue.put(dispatchMsg);
-                assignedDrones++;
-
             }
-            System.out.println("");
 
+            if (foamNeeded > 0) {
+                Message remainingFire = new Message(
+                        fireEvt.getType(),
+                        fireEvt.getDroneID(),
+                        fireEvt.getZoneID(),
+                        fireEvt.getSeverity(),
+                        fireEvt.getEventTime(),
+                        fireEvt.getEventTimeString(),
+                        fireEvt.getCenterX(),
+                        fireEvt.getCenterY(),
+                        foamNeeded
+                );
 
-
+                pendingFires.add(remainingFire);
+                Logger.log("[Scheduler]", "Fire " + fireEvt.getZoneID() + " still needs " + foamNeeded + " foam, requeueing.");
+            }
         }
     }
 

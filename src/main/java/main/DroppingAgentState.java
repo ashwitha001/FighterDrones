@@ -25,6 +25,7 @@ public class DroppingAgentState implements DroneState {
     private void dropFoam(DroneSubsystem subsystem, Message msg) throws InterruptedException {
         double needed    = msg.getRemainingFoamNeeded();
         double droneFoam = subsystem.getFoamRemaining();
+        double actualFoamDropped = Math.min(needed, droneFoam);
 
         // DRONE_DROPPING => notify scheduler
         subsystem.getDroneCompletionQueue().put(new Message(
@@ -36,7 +37,7 @@ public class DroppingAgentState implements DroneState {
                 msg.getEventTimeString(),
                 msg.getCenterX(),
                 msg.getCenterY(),
-                needed
+                actualFoamDropped
         ));
 
         if (droneFoam >= needed) {
@@ -62,9 +63,8 @@ public class DroppingAgentState implements DroneState {
             ));
         } else {
             // partial coverage
-            double partialDrop = droneFoam;
-            double leftover = needed - partialDrop;
-            double dropTime = Utility.nozzleDropTime(partialDrop);
+            double leftover = needed - actualFoamDropped;
+            double dropTime = Utility.nozzleDropTime(actualFoamDropped);
             Thread.sleep((long)(dropTime * 1000));
             subsystem.setFoamRemaining(0.0);
 

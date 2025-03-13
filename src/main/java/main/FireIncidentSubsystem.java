@@ -30,6 +30,7 @@ public class FireIncidentSubsystem implements Runnable {
     public void run() {
         loadZoneData("zones.csv");
         List<Message> allEvents = loadAndParseEvents("events.csv");
+        System.out.println("");
 
         // dispatch
         for (Message e : allEvents) {
@@ -100,7 +101,6 @@ public class FireIncidentSubsystem implements Runnable {
             System.err.println("[FireIncidentSubsystem] Error reading " + filename + ": " + e.getMessage());
         }
 
-        System.out.println("");
         // Sort events by severity (HIGH -> MODERATE -> LOW)
         events.sort((a, b) -> firePriority(b) - firePriority(a));
 
