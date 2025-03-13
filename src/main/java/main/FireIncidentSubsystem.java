@@ -128,6 +128,9 @@ public class FireIncidentSubsystem implements Runnable {
             default:          needed = 10.0;
         }
 
+        // Generate a unique event ID
+        String eventID = timeStr + "_Z" + zoneID;
+
         return new Message(
                 "ACTIVE_FIRE",
                 zoneID,
@@ -136,7 +139,8 @@ public class FireIncidentSubsystem implements Runnable {
                 timeStr,
                 cx,
                 cy,
-                needed
+                needed,
+                eventID
         );
     }
 

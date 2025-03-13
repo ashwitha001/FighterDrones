@@ -8,7 +8,6 @@ package main;
  * - Then we do => RETURN_TO_BASE event
  */
 public class DroppingAgentState implements DroneState {
-
     @Override
     public void handleEvent(DroneSubsystem subsystem, DroneEvent event, Message msg) throws InterruptedException {
         switch (event) {
@@ -26,6 +25,7 @@ public class DroppingAgentState implements DroneState {
         double needed    = msg.getRemainingFoamNeeded();
         double droneFoam = subsystem.getFoamRemaining();
         double actualFoamDropped = Math.min(needed, droneFoam);
+        String eventID = msg.getEventID();
 
         // DRONE_DROPPING => notify scheduler
         subsystem.getDroneCompletionQueue().put(new Message(
@@ -37,11 +37,13 @@ public class DroppingAgentState implements DroneState {
                 msg.getEventTimeString(),
                 msg.getCenterX(),
                 msg.getCenterY(),
-                actualFoamDropped
+                actualFoamDropped,
+                eventID
         ));
 
         if (droneFoam >= needed) {
             // full coverage
+
             double dropTime = Utility.nozzleDropTime(needed);
             Thread.sleep((long)(dropTime * 1000));
             subsystem.setFoamRemaining(droneFoam - needed);
@@ -59,7 +61,8 @@ public class DroppingAgentState implements DroneState {
                     msg.getEventTimeString(),
                     msg.getCenterX(),
                     msg.getCenterY(),
-                    0.0
+                    0.0,
+                    eventID
             ));
         } else {
             // partial coverage
@@ -80,7 +83,8 @@ public class DroppingAgentState implements DroneState {
                     msg.getEventTimeString(),
                     msg.getCenterX(),
                     msg.getCenterY(),
-                    leftover
+                    leftover,
+                    eventID
             ));
         }
 

@@ -23,6 +23,7 @@ public class Scheduler implements Runnable {
     // "IDLE", "EN_ROUTE", "DROPPING", "BUSY", etc.
     private final Map<Integer, String> droneStatus;
     private final int numDrones;
+    private final Set<String> extinguishedFires = new HashSet<>();
 
     // queue of fires
     private final Queue<Message> pendingFires = new LinkedList<>();
@@ -99,6 +100,7 @@ public class Scheduler implements Runnable {
     private void handleDroneUpdate(Message m) throws InterruptedException {
         Logger.log("[Scheduler]", "Drone update => " + m);
         int dID = m.getDroneID();
+        String eventID = m.getEventID();
 
         switch (m.getType()) {
             case "DRONE_EN_ROUTE":
@@ -110,14 +112,19 @@ public class Scheduler implements Runnable {
                 break;
 
             case "FIRE_EXTINGUISHED":
-                extinguishedCount++;
-                Logger.log("[Scheduler]",
-                        "Fire Extinguished => " + extinguishedCount + "/" + totalFires);
-                incidentCompletionQueue.put(m);
+                synchronized (extinguishedFires) {  // Prevent duplicate updates
+                    if (!extinguishedFires.contains(eventID)) {
+                        extinguishedCount++;
+                        extinguishedFires.add(eventID);
+                        Logger.log("[Scheduler]",
+                                "Fire Extinguished => " + extinguishedCount + "/" + totalFires);
 
-                if (extinguishedCount >= totalFires) {
-                    allFiresDone = true;
+                        if (extinguishedCount >= totalFires) {
+                            allFiresDone = true;
+                        }
+                    }
                 }
+                incidentCompletionQueue.put(m);
                 break;
 
             case "PARTIAL_COVERAGE":
@@ -144,9 +151,11 @@ public class Scheduler implements Runnable {
             Message fireEvt = pendingFires.poll();
             List<Integer> availableDrones = getAvailableDrones(); // get a list of all idle drones
 
+            Queue<Message> tempQueue = new LinkedList<>();
+
             if (availableDrones.isEmpty()) {
-                pendingFires.add(fireEvt); // no drones available, requeue fire
-                return;
+                tempQueue.add(fireEvt);
+                continue;
             }
 
             double foamNeeded = fireEvt.getRemainingFoamNeeded();
@@ -174,7 +183,8 @@ public class Scheduler implements Runnable {
                         fireEvt.getEventTimeString(),
                         fireEvt.getCenterX(),
                         fireEvt.getCenterY(),
-                        foamToUse
+                        foamToUse,
+                        fireEvt.getEventID()
                 );
 
                 Logger.log("[Scheduler]",
@@ -193,10 +203,13 @@ public class Scheduler implements Runnable {
                         fireEvt.getEventTimeString(),
                         fireEvt.getCenterX(),
                         fireEvt.getCenterY(),
-                        foamNeeded
+                        foamNeeded,
+                        fireEvt.getEventID()
                 );
 
-                pendingFires.add(remainingFire);
+                tempQueue.add(remainingFire);
+//                pendingFires.add(remainingFire);
+                pendingFires.addAll(tempQueue);
                 Logger.log("[Scheduler]", "Fire " + fireEvt.getZoneID() + " still needs " + foamNeeded + " foam, requeueing.");
             }
         }
