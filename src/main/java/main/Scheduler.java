@@ -139,38 +139,60 @@ public class Scheduler implements Runnable {
     }
 
     private void dispatchIfPossible() throws InterruptedException {
-        if (pendingFires.isEmpty()) return;
+        while (!pendingFires.isEmpty()) {
+            Message fireEvt = pendingFires.poll();
+            List<Integer> availableDrones = getAvailableDrones(); // get a list of all idle drones
 
-        // find an IDLE drone
-        int idleDrone = -1;
+            if (availableDrones.isEmpty()) {
+                pendingFires.add(fireEvt); // no drones available, requeue fire
+                return;
+            }
+
+            double foamNeeded = fireEvt.getRemainingFoamNeeded();
+            double foamPerDrone = DroneSubsystem.getFoamCapacity();
+            int requiredDrones = (int) Math.ceil(foamNeeded / foamPerDrone);
+            int assignedDrones = 0;
+
+            for (int droneID : availableDrones) {
+                droneStatus.put(droneID, "EN_ROUTE");
+                if (assignedDrones >= requiredDrones) break;
+
+               // if (droneFoamLevels.get(droneID) < foamPerDrone) continue; // Skip low-foam drones
+
+                // build dispatch message w/ droneID
+                Message dispatchMsg = new Message(
+                        fireEvt.getType(),
+                        droneID,
+                        fireEvt.getZoneID(),
+                        fireEvt.getSeverity(),
+                        fireEvt.getEventTime(),
+                        fireEvt.getEventTimeString(),
+                        fireEvt.getCenterX(),
+                        fireEvt.getCenterY(),
+                        fireEvt.getRemainingFoamNeeded()
+                );
+
+                Logger.log("[Scheduler]",
+                        "Dispatched Drone " + droneID + " => " + fireEvt);
+
+                dronesQueue.put(dispatchMsg);
+                assignedDrones++;
+
+            }
+            System.out.println("");
+
+
+
+        }
+    }
+
+    private List<Integer> getAvailableDrones() {
+        List<Integer> idleDrones = new ArrayList<>();
         for (Map.Entry<Integer, String> e : droneStatus.entrySet()) {
             if ("IDLE".equals(e.getValue())) {
-                idleDrone = e.getKey();
-                break;
+                idleDrones.add(e.getKey());
             }
         }
-        if (idleDrone == -1) return; // no idle drone
-
-        // remove next pending
-        Message fireEvt = pendingFires.poll();
-
-        droneStatus.put(idleDrone, "EN_ROUTE");
-
-        // build dispatch message w/ droneID
-        Message dispatchMsg = new Message(
-                fireEvt.getType(),
-                idleDrone,
-                fireEvt.getZoneID(),
-                fireEvt.getSeverity(),
-                fireEvt.getEventTime(),
-                fireEvt.getEventTimeString(),
-                fireEvt.getCenterX(),
-                fireEvt.getCenterY(),
-                fireEvt.getRemainingFoamNeeded()
-        );
-
-        Logger.log("[Scheduler]",
-                "Dispatched Drone " + idleDrone + " => " + fireEvt);
-        dronesQueue.put(dispatchMsg);
+        return idleDrones;
     }
 }
