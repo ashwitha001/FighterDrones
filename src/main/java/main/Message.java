@@ -23,6 +23,7 @@ public class Message implements Serializable {
     private final int centerY;
 
     private double remainingFoamNeeded; // partial coverage leftover
+    private final String eventID;
 
     // FireIncidentSubsystem constructor
     public Message(String type,
@@ -32,7 +33,8 @@ public class Message implements Serializable {
                    String eventTimeString,
                    int centerX,
                    int centerY,
-                   double foamNeeded) {
+                   double foamNeeded,
+                   String eventID) {
         this.type = type;
         this.droneID = -1;
         this.zoneID = zoneID;
@@ -42,6 +44,7 @@ public class Message implements Serializable {
         this.centerX = centerX;
         this.centerY = centerY;
         this.remainingFoamNeeded = foamNeeded;
+        this.eventID = eventID;
     }
 
     // Drone/Scheduler constructor
@@ -53,7 +56,8 @@ public class Message implements Serializable {
                    String eventTimeString,
                    int centerX,
                    int centerY,
-                   double foamNeeded) {
+                   double foamNeeded,
+                   String eventID) {
         this.type = type;
         this.droneID = droneID;
         this.zoneID = zoneID;
@@ -63,9 +67,11 @@ public class Message implements Serializable {
         this.centerX = centerX;
         this.centerY = centerY;
         this.remainingFoamNeeded = foamNeeded;
+        this.eventID = eventID;
     }
 
     public String getType() { return type; }
+    public String getEventID() { return eventID; }
     public int getDroneID() { return droneID; }
     public int getZoneID() { return zoneID; }
     public String getSeverity() { return severity; }

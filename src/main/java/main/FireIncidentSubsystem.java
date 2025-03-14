@@ -123,6 +123,9 @@ public class FireIncidentSubsystem implements Runnable {
             default:          needed = 10.0;
         }
 
+        // Generate a unique event ID
+        String eventID = timeStr + "_Z" + zoneID;
+
         return new Message(
                 "ACTIVE_FIRE",
                 zoneID,
@@ -131,7 +134,9 @@ public class FireIncidentSubsystem implements Runnable {
                 timeStr,
                 cx,
                 cy,
-                needed
+                needed,
+                eventID
+
         );
     }
 
@@ -150,5 +155,13 @@ public class FireIncidentSubsystem implements Runnable {
                 Logger.log("[FireIncidentSubsystem]", "Completion confirmed: " + done);
             }
         }
+    }
+    private static int firePriority(Message msg) {
+        return switch (msg.getSeverity()) {
+            case "HIGH" -> 3;
+            case "MODERATE" -> 2;
+            case "LOW" -> 1;
+            default -> 0;
+        };
     }
 }
