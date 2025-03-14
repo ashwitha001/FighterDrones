@@ -10,17 +10,15 @@ public class IdleState implements DroneState {
 
     @Override
     public void handleEvent(DroneSubsystem subsystem, DroneEvent event, Message msg) throws InterruptedException {
+        int droneID = subsystem.getDroneID();
         switch (event) {
             case DISPATCH_RECEIVED:
-                Logger.log("[IdleState]", "DISPATCH_RECEIVED => transition to EN_ROUTE state.");
-                // We'll set the drone's current state to the "EN_ROUTE" object from the HashMap
+                Logger.log("[IdleState-" + droneID + "]", "DISPATCH_RECEIVED => transition to EN_ROUTE state.");
                 subsystem.setState("EN_ROUTE");
-                // Then let that new state handle the same event to do the traveling logic
                 subsystem.getCurrentState().handleEvent(subsystem, event, msg);
                 break;
-
             default:
-                Logger.log("[IdleState]", "Ignoring event " + event + " while IDLE.");
+                Logger.log("[IdleState-" + droneID + "]", "Ignoring event " + event + " while IDLE.");
         }
     }
 }
