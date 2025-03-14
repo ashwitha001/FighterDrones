@@ -23,7 +23,7 @@ public class EnRouteState implements DroneState {
                     Logger.log("[EnRouteState-" + droneID + "]", "Foam remains (" + subsystem.getFoamRemaining() + " kg). Notifying Scheduler and waiting for potential diversion.");
                     // Send current location in the DRONE_RETURNING message.
                     Coordinates loc = subsystem.getCurrentLocation();
-                    subsystem.getDroneCompletionQueue().put(new Message(
+                    subsystem.sendToScheduler(new Message(
                             "DRONE_RETURNING",
                             droneID,
                             0, // zoneID not applicable
@@ -59,7 +59,7 @@ public class EnRouteState implements DroneState {
             case ARRIVE_BASE:
                 Logger.log("[EnRouteState-" + droneID + "]", "ARRIVE_BASE => transition to IDLE state.");
                 subsystem.setState("IDLE");
-                subsystem.getDroneCompletionQueue().put(new Message(
+                subsystem.sendToScheduler(new Message(
                         "DRONE_IDLE",
                         droneID,
                         0,

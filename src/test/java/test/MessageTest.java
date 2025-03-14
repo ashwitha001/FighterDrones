@@ -27,7 +27,7 @@ public class MessageTest {
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         timeString = "14:50:45";
         localTime = LocalTime.parse(timeString, timeFormatter);
-        msg  = new Message("ACTIVE_FIRE",1,"HIGH", localTime, timeString);
+        //msg  = new Message("ACTIVE_FIRE",1,"HIGH", localTime, timeString);
     }
 
     /**

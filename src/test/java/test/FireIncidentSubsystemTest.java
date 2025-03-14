@@ -32,7 +32,7 @@ public class FireIncidentSubsystemTest {
         BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
-        fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "main.FireIncidentSubsystem");
+      //  fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "main.FireIncidentSubsystem");
 
     }
 

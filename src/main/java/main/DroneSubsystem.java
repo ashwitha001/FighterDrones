@@ -1,58 +1,86 @@
 package main;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.Map;
+import java.io.IOException;
+import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
+import java.net.SocketException;
 import java.util.HashMap;
+import java.util.Map;
 
 public class DroneSubsystem implements Runnable {
 
     private static final double MAX_BATTERY_SECONDS = 3600.0;
-    private static final double FOAM_CAPACITY       = 15.0;
+    private static final double FOAM_CAPACITY = 15.0;
 
     private final int droneID;
-    private final BlockingQueue<Message> dronesQueue;           // from Scheduler
-    private final BlockingQueue<Message> droneCompletionQueue;  // to Scheduler
-
-    // State map for the drone
+    private final InetSocketAddress schedulerAddress;
+    private DatagramSocket socket; // ephemeral socket
     private final Map<String, DroneState> stateMap;
-    // Current state
     private DroneState currentState;
 
-    // Shared data: current location, total flight time, and remaining foam.
+    // Shared data
     private Coordinates currentLocation;
     private double totalFlightTime;
     private double foamRemaining;
 
-    public DroneSubsystem(int droneID,
-                          BlockingQueue<Message> dronesQueue,
-                          BlockingQueue<Message> droneCompletionQueue) {
+    public DroneSubsystem(int droneID, InetSocketAddress schedulerAddress) {
         this.droneID = droneID;
-        this.dronesQueue = dronesQueue;
-        this.droneCompletionQueue = droneCompletionQueue;
+        this.schedulerAddress = schedulerAddress;
 
         stateMap = new HashMap<>();
         stateMap.put("IDLE", new IdleState());
         stateMap.put("EN_ROUTE", new EnRouteState());
         stateMap.put("DROPPING", new DroppingAgentState());
 
-        // Initial values
-        this.currentLocation = new Coordinates(0, 0);
-        this.totalFlightTime = 0.0;
-        this.foamRemaining   = FOAM_CAPACITY;
+        currentLocation = new Coordinates(0, 0);
+        totalFlightTime = 0.0;
+        foamRemaining = FOAM_CAPACITY;
+        currentState = stateMap.get("IDLE");
 
-        // Start as IDLE
-        this.currentState = stateMap.get("IDLE");
+        try {
+            // Bind to an ephemeral port.
+            this.socket = new DatagramSocket();
+            Logger.log("[DroneSubsystem-" + droneID + "]", "Bound to port " + socket.getLocalPort());
+        } catch (SocketException e) {
+            Logger.log("[DroneSubsystem-" + droneID + "]", "SocketException: " + e.getMessage());
+        }
+
+        // Start the UDPReceiver for this drone.
+        Thread receiverThread = new Thread(new UDPReceiver(socket, m -> {
+            try {
+                Logger.log("[DroneSubsystem-" + droneID + "]", "Received message => " + m);
+                currentState.handleEvent(this, DroneEvent.DISPATCH_RECEIVED, m);
+            } catch (InterruptedException ex) {
+                Logger.log("[DroneSubsystem-" + droneID + "]", "Interrupted in message handling.");
+            }
+        }), "DroneReceiver-" + droneID);
+        receiverThread.start();
+
+        // Send registration message to Scheduler.
+        // We'll use the centerX field to carry our ephemeral port.
+        Message registration = new Message(
+                "DRONE_REGISTRATION",
+                droneID,
+                0,
+                "REGISTER",
+                java.time.LocalTime.now(),
+                java.time.LocalTime.now().toString(),
+                socket.getLocalPort(),
+                0,
+                0.0,
+                "REG_" + droneID
+        );
+        sendToScheduler(registration);
     }
 
     @Override
     public void run() {
-        while (true) {
+        while (!Thread.currentThread().isInterrupted()) {
             try {
-                Message msg = dronesQueue.take();
-                Logger.log("[DroneSubsystem-" + droneID + "]", "Received message => " + msg);
-                currentState.handleEvent(this, DroneEvent.DISPATCH_RECEIVED, msg);
+                Thread.sleep(1000);
             } catch (InterruptedException e) {
                 Logger.log("[DroneSubsystem-" + droneID + "]", "Interrupted => shutting down...");
+                Thread.currentThread().interrupt();
                 break;
             }
         }
@@ -67,22 +95,50 @@ public class DroneSubsystem implements Runnable {
     }
 
     public DroneState getCurrentState() {
-        return this.currentState;
+        return currentState;
     }
 
-    public int getDroneID() { return droneID; }
-    public BlockingQueue<Message> getDronesQueue() { return dronesQueue; }
-    public BlockingQueue<Message> getDroneCompletionQueue() { return droneCompletionQueue; }
+    public int getDroneID() {
+        return droneID;
+    }
 
-    public Coordinates getCurrentLocation() { return currentLocation; }
-    public void setCurrentLocation(Coordinates c) { this.currentLocation = c; }
+    public Coordinates getCurrentLocation() {
+        return currentLocation;
+    }
 
-    public double getTotalFlightTime() { return totalFlightTime; }
-    public void setTotalFlightTime(double t) { this.totalFlightTime = t; }
+    public void setCurrentLocation(Coordinates c) {
+        this.currentLocation = c;
+    }
 
-    public double getFoamRemaining() { return foamRemaining; }
-    public void setFoamRemaining(double v) { this.foamRemaining = v; }
+    public double getTotalFlightTime() {
+        return totalFlightTime;
+    }
 
-    public static double getMaxBatterySeconds() { return MAX_BATTERY_SECONDS; }
-    public static double getFoamCapacity() { return FOAM_CAPACITY; }
+    public void setTotalFlightTime(double t) {
+        this.totalFlightTime = t;
+    }
+
+    public double getFoamRemaining() {
+        return foamRemaining;
+    }
+
+    public void setFoamRemaining(double v) {
+        this.foamRemaining = v;
+    }
+
+    public static double getMaxBatterySeconds() {
+        return MAX_BATTERY_SECONDS;
+    }
+
+    public static double getFoamCapacity() {
+        return FOAM_CAPACITY;
+    }
+
+    public void sendToScheduler(Message m) {
+        try {
+            UDPUtil.sendMessage(m, schedulerAddress);
+        } catch (IOException e) {
+            Logger.log("[DroneSubsystem-" + droneID + "]", "Error sending to Scheduler: " + e.getMessage());
+        }
+    }
 }

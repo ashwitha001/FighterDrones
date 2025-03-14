@@ -27,7 +27,7 @@ public class DroppingAgentState implements DroneState {
         double needed = msg.getRemainingFoamNeeded();
         double droneFoam = subsystem.getFoamRemaining();
 
-        subsystem.getDroneCompletionQueue().put(new Message(
+        subsystem.sendToScheduler(new Message(
                 "DRONE_DROPPING",
                 droneID,
                 msg.getZoneID(),
@@ -45,7 +45,7 @@ public class DroppingAgentState implements DroneState {
             Thread.sleep((long) (dropTime * 1000));
             subsystem.setFoamRemaining(droneFoam - needed);
             Logger.log("[DroppingAgentState-" + droneID + "]", "FIRE_EXTINGUISHED => used " + needed + ", leftover foam=" + subsystem.getFoamRemaining());
-            subsystem.getDroneCompletionQueue().put(new Message(
+            subsystem.sendToScheduler(new Message(
                     "FIRE_EXTINGUISHED",
                     droneID,
                     msg.getZoneID(),
@@ -64,7 +64,7 @@ public class DroppingAgentState implements DroneState {
             Thread.sleep((long) (dropTime * 1000));
             subsystem.setFoamRemaining(0.0);
             Logger.log("[DroppingAgentState-" + droneID + "]", "PARTIAL_COVERAGE => leftover= " + leftover);
-            subsystem.getDroneCompletionQueue().put(new Message(
+            subsystem.sendToScheduler(new Message(
                     "PARTIAL_COVERAGE",
                     droneID,
                     msg.getZoneID(),
