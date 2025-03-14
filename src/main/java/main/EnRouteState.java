@@ -31,6 +31,18 @@ public class EnRouteState implements DroneState {
             case ARRIVE_BASE:
                 Logger.log("[EnRouteState]", "ARRIVE_BASE => transition to IDLE.");
                 subsystem.setState("IDLE");
+                subsystem.getDroneCompletionQueue().put(new Message(
+                        "DRONE_IDLE",
+                        subsystem.getDroneID(),
+                        msg.getZoneID(),
+                        msg.getSeverity(),
+                        msg.getEventTime(),
+                        msg.getEventTimeString(),
+                        msg.getCenterX(),
+                        msg.getCenterY(),
+                        msg.getRemainingFoamNeeded(),
+                        msg.getEventID()
+                ));
                 break;
 
             default:
