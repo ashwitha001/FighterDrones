@@ -60,7 +60,7 @@ public class Utility {
             System.out.printf("%s %d%%  %s%n", bar, pct, label);
 
             if (i < STEPS) {
-                Thread.sleep((long)(stepDur * 1000));
+                Thread.sleep((long)(stepDur * 100));
             }
         }
     }
