@@ -5,6 +5,8 @@ import main.Scheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.net.InetSocketAddress;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -22,13 +24,15 @@ public class SchedulerTest {
      */
     @BeforeEach
     public void setUp(){
-        BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<Message> dronesQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<Message> droneCompletionQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
+//        BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
+//        BlockingQueue<Message> dronesQueue = new LinkedBlockingQueue<>();
+//        BlockingQueue<Message> droneCompletionQueue = new LinkedBlockingQueue<>();
+//        BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
       //  schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "main.Scheduler");
 
+        InetSocketAddress schedulerAddress = new InetSocketAddress("localhost", 2);
+        schedulerThread = new Thread(new Scheduler(schedulerAddress));
     }
 
     /**

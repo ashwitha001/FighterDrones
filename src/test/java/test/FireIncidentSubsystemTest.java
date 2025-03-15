@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.InetSocketAddress;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -29,11 +30,13 @@ public class FireIncidentSubsystemTest {
      */
     @BeforeEach
     public void setUp(){
-        BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
-        BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
+//        BlockingQueue<Message> incidentQueue = new LinkedBlockingQueue<>();
+//        BlockingQueue<Message> incidentCompletionQueue = new LinkedBlockingQueue<>();
 
       //  fireIncidentThread = new Thread(new FireIncidentSubsystem(incidentQueue, incidentCompletionQueue), "main.FireIncidentSubsystem");
 
+        InetSocketAddress schedulerAddress = new InetSocketAddress("localhost", 1);
+        fireIncidentThread = new Thread(new FireIncidentSubsystem(schedulerAddress,1));
     }
 
     /**

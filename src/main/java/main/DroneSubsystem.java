@@ -94,6 +94,10 @@ public class DroneSubsystem implements Runnable {
         }
     }
 
+    public Map<String, DroneState> getStateMap(){
+        return stateMap;
+    }
+
     public DroneState getCurrentState() {
         return currentState;
     }
