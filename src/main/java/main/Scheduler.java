@@ -93,6 +93,12 @@ public class Scheduler implements Runnable {
             case "FIRE_EXTINGUISHED":
                 // Log the extinguished event.
                 Logger.log("[Scheduler]", "FIRE_EXTINGUISHED received: " + m);
+                try {
+                    UDPUtil.sendMessage(m, new InetSocketAddress("localhost", 5001));
+                    Logger.log("[Scheduler]", "Sent completion message to FireIncidentSubsystem.");
+                } catch (IOException e) {
+                    Logger.log("[Scheduler]", "Error sending completion message: " + e.getMessage());
+                }
                 // (Optionally, you could update termination state here.)
                 break;
             case "PARTIAL_COVERAGE":
