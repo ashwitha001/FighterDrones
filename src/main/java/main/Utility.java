@@ -12,18 +12,17 @@ import java.io.IOException;
  * 4) nozzleDropTime => partial coverage flow
  */
 public class Utility {
-
-    public static final double MAX_SPEED_MS = 19.44;  // 70 km/h =>19.44 m/s
-    public static final double ACC_DEC_TIME = 3.0;    // 3s
+    public static final double MAX_SPEED_MS = 19.44; // e.g. 70 km/h
+    public static final double ACC_DEC_TIME = 3.0;
     public static final double ACCEL = MAX_SPEED_MS / ACC_DEC_TIME;
     public static final double FULL_ACCEL_DECEL_DIST = 58.32;
 
     public static final double FLOW_RATE_LPS = 9.0;
     public static final double NOZZLE_OPEN_TIME = 0.01;
 
-    // Count lines in events.csv (minus header):
+    // For this design, the Scheduler does not read the number of events.
     public static int countEventLines(String eventsFile) {
-        int count=0;
+        int count = 0;
         try (BufferedReader br = new BufferedReader(new FileReader(eventsFile))) {
             br.readLine(); // skip header
             while (br.readLine() != null) count++;
@@ -37,7 +36,6 @@ public class Utility {
         int dx = x2 - x1;
         int dy = y2 - y1;
         double dist = Math.sqrt(dx*dx + dy*dy);
-
         if (dist >= FULL_ACCEL_DECEL_DIST) {
             double cruiseDist = dist - FULL_ACCEL_DECEL_DIST;
             return 6.0 + (cruiseDist / MAX_SPEED_MS);
@@ -54,13 +52,12 @@ public class Utility {
         }
         double stepDur = totalTime / STEPS;
         for (int i = 0; i <= STEPS; i++) {
-            double frac = i / (double)STEPS;
+            double frac = i / (double) STEPS;
             int pct = (int)(frac * 100);
             String bar = buildBar(frac);
             System.out.printf("%s %d%%  %s%n", bar, pct, label);
-
             if (i < STEPS) {
-                Thread.sleep((long)(stepDur * 1000));
+                Thread.sleep((long)(stepDur * 250));
             }
         }
     }
@@ -68,10 +65,10 @@ public class Utility {
     private static String buildBar(double fraction) {
         final int WIDTH = 20;
         int fill = (int)Math.round(WIDTH * fraction);
-        int empty= WIDTH - fill;
+        int empty = WIDTH - fill;
         StringBuilder sb = new StringBuilder("[");
-        for (int i=0; i<fill; i++) sb.append("#");
-        for (int i=0; i<empty; i++) sb.append("-");
+        for (int i = 0; i < fill; i++) sb.append("#");
+        for (int i = 0; i < empty; i++) sb.append("-");
         sb.append("]");
         return sb.toString();
     }

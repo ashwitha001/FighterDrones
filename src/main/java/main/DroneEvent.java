@@ -11,5 +11,6 @@ public enum DroneEvent {
     PARTIAL_COVERAGE,   // Drone did partial coverage
     FIRE_EXTINGUISHED,  // Fire fully extinguished
     RETURN_TO_BASE,     // Drone sets course back to (0,0)
+    DIVERT,             // Drone is diverted to a new fire zone
     ARRIVE_BASE         // Drone arrives at (0,0)
 }
