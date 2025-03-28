@@ -1,12 +1,8 @@
 package main;
 
-/**
- * DroppingAgentState:
- * - The drone is actively dropping foam.
- * - If foam < needed => PARTIAL_COVERAGE => leftover re-queued in scheduler.
- * - If foam >= needed => FIRE_EXTINGUISHED.
- * - Then => RETURN_TO_BASE => transitions to EN_ROUTE => eventually IDLE.
- */
+import java.util.Timer;
+import java.util.TimerTask;
+
 public class DroppingAgentState implements DroneState {
 
     @Override
@@ -16,6 +12,11 @@ public class DroppingAgentState implements DroneState {
             case START_DROPPING:
                 Logger.log("[DroppingAgentState-" + droneID + "]", "START_DROPPING received. Beginning foam drop.");
                 dropFoam(subsystem, msg);
+                break;
+            case DRONE_FAULT:
+                Logger.log("[DroppingAgentState-" + droneID + "]", "DRONE_FAULT event received, transitioning to FaultState.");
+                subsystem.setState("FAULT");
+                subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.DRONE_FAULT, msg);
                 break;
             default:
                 Logger.log("[DroppingAgentState-" + droneID + "]", "Ignoring event " + event + " while DROPPING.");
@@ -27,6 +28,7 @@ public class DroppingAgentState implements DroneState {
         double needed = msg.getRemainingFoamNeeded();
         double droneFoam = subsystem.getFoamRemaining();
 
+        // Send initial update.
         subsystem.sendToScheduler(new Message(
                 "DRONE_DROPPING",
                 droneID,
@@ -37,8 +39,39 @@ public class DroppingAgentState implements DroneState {
                 msg.getCenterX(),
                 msg.getCenterY(),
                 needed,
-                msg.getEventID()
+                msg.getEventID(),
+                msg.getFaultType(),
+                msg.getFaultTime()
         ));
+
+        // Start a fault timer for dropping.
+        String faultType = msg.getFaultType();
+        double faultTime = msg.getFaultTime();
+        Timer faultTimer = null;
+        if (faultType != null && !faultType.isEmpty() && faultTime > 0) {
+            faultTimer = new Timer();
+            faultTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    Logger.log("[DroppingAgentState-" + droneID + "]", "Fault triggered during dropping: " + faultType);
+                    Message faultMsg = new Message(
+                            "DRONE_FAULT",
+                            droneID,
+                            msg.getZoneID(),
+                            msg.getSeverity(),
+                            msg.getEventTime(),
+                            msg.getEventTimeString(),
+                            msg.getCenterX(),
+                            msg.getCenterY(),
+                            subsystem.getFoamRemaining(),
+                            msg.getEventID(),
+                            faultType,
+                            faultTime
+                    );
+                    subsystem.sendToScheduler(faultMsg);
+                }
+            }, (long)(faultTime * 1000));
+        }
 
         if (droneFoam >= needed) {
             double dropTime = Utility.nozzleDropTime(needed);
@@ -55,7 +88,9 @@ public class DroppingAgentState implements DroneState {
                     msg.getCenterX(),
                     msg.getCenterY(),
                     0.0,
-                    msg.getEventID()
+                    msg.getEventID(),
+                    faultType,
+                    faultTime
             ));
         } else {
             double partialDrop = droneFoam;
@@ -74,8 +109,13 @@ public class DroppingAgentState implements DroneState {
                     msg.getCenterX(),
                     msg.getCenterY(),
                     leftover,
-                    msg.getEventID()
+                    msg.getEventID(),
+                    faultType,
+                    faultTime
             ));
+        }
+        if (faultTimer != null) {
+            faultTimer.cancel();
         }
         Logger.log("[DroppingAgentState-" + droneID + "]", "Dropping done => RETURN_TO_BASE event.");
         subsystem.setState("EN_ROUTE");

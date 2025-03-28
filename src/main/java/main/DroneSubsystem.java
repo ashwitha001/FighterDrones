@@ -6,6 +6,9 @@ import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
+
 
 public class DroneSubsystem implements Runnable {
 
@@ -22,6 +25,9 @@ public class DroneSubsystem implements Runnable {
     private Coordinates currentLocation;
     private double totalFlightTime;
     private double foamRemaining;
+
+    // Fault timer (used to inject faults based on faultTime)
+    private Timer faultTimer = null;
 
     public DroneSubsystem(int droneID, InetSocketAddress schedulerAddress) {
         this.droneID = droneID;
@@ -49,6 +55,12 @@ public class DroneSubsystem implements Runnable {
         Thread receiverThread = new Thread(new UDPReceiver(socket, m -> {
             try {
                 Logger.log("[DroneSubsystem-" + droneID + "]", "Received message => " + m);
+                // If the message is a dispatch (or divert) with fault data, start the fault timer.
+                if ((m.getType().equals("DISPATCH_RECEIVED") || m.getType().equals("DIVERT"))
+                        && m.getFaultType() != null && !m.getFaultType().isEmpty()
+                        && m.getFaultTime() > 0) {
+                    startFaultTimer(m);
+                }
                 currentState.handleEvent(this, DroneEvent.DISPATCH_RECEIVED, m);
             } catch (InterruptedException ex) {
                 Logger.log("[DroneSubsystem-" + droneID + "]", "Interrupted in message handling.");
@@ -57,7 +69,7 @@ public class DroneSubsystem implements Runnable {
         receiverThread.start();
 
         // Send registration message to Scheduler.
-        // We'll use the centerX field to carry our ephemeral port.
+        // Use centerX to carry our ephemeral port; no fault data for registration.
         Message registration = new Message(
                 "DRONE_REGISTRATION",
                 droneID,
@@ -68,9 +80,48 @@ public class DroneSubsystem implements Runnable {
                 socket.getLocalPort(),
                 0,
                 0.0,
-                "REG_" + droneID
+                "REG_" + droneID,
+                "", 0.0
         );
         sendToScheduler(registration);
+    }
+
+    // Fault timer management
+    public synchronized void startFaultTimer(Message m) {
+        // Cancel any existing timer.
+        cancelFaultTimer();
+        // Start a new timer if fault info is present.
+        if (m.getFaultType() != null && !m.getFaultType().isEmpty() && m.getFaultTime() > 0) {
+            faultTimer = new Timer();
+            faultTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    Logger.log("[DroneSubsystem-" + droneID + "]", "Fault triggered: " + m.getFaultType());
+                    Message faultMsg = new Message(
+                            "DRONE_FAULT",
+                            droneID,
+                            m.getZoneID(),
+                            m.getSeverity(),
+                            m.getEventTime(),
+                            m.getEventTimeString(),
+                            m.getCenterX(),
+                            m.getCenterY(),
+                            getFoamRemaining(),
+                            m.getEventID(),
+                            m.getFaultType(),
+                            m.getFaultTime()
+                    );
+                    sendToScheduler(faultMsg);
+                }
+            }, (long)(m.getFaultTime() * 1000));
+        }
+    }
+
+    public synchronized void cancelFaultTimer() {
+        if (faultTimer != null) {
+            faultTimer.cancel();
+            faultTimer = null;
+        }
     }
 
     @Override
@@ -92,10 +143,6 @@ public class DroneSubsystem implements Runnable {
         } else {
             Logger.log("[DroneSubsystem-" + droneID + "]", "No such state => " + stateName + ". Keeping current state.");
         }
-    }
-
-    public Map<String, DroneState> getStateMap(){
-        return stateMap;
     }
 
     public DroneState getCurrentState() {

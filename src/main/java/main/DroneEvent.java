@@ -10,7 +10,9 @@ public enum DroneEvent {
     START_DROPPING,     // Drone begins dropping foam
     PARTIAL_COVERAGE,   // Drone did partial coverage
     FIRE_EXTINGUISHED,  // Fire fully extinguished
-    RETURN_TO_BASE,     // Drone sets course back to (0,0)
+    RETURN_TO_BASE,     // Drone sets course back to base (0,0)
     DIVERT,             // Drone is diverted to a new fire zone
-    ARRIVE_BASE         // Drone arrives at (0,0)
+    ARRIVE_BASE,        // Drone arrives at base
+    DRONE_FAULT,        // Drone detects a fault (e.g., stuck, nozzle jam)
+    SHUTDOWN            // Shutdown command from Scheduler
 }

@@ -25,6 +25,10 @@ public class Message implements Serializable {
     private double remainingFoamNeeded; // partial coverage leftover
     private final String eventID;
 
+    // New fault fields:
+    private final String faultType;
+    private final double faultTime;
+
     // FireIncidentSubsystem constructor
     public Message(String type,
                    int zoneID,
@@ -34,7 +38,9 @@ public class Message implements Serializable {
                    int centerX,
                    int centerY,
                    double foamNeeded,
-                   String eventID) {
+                   String eventID,
+                   String faultType,
+                   double faultTime) {
         this.type = type;
         this.droneID = -1;
         this.zoneID = zoneID;
@@ -45,6 +51,8 @@ public class Message implements Serializable {
         this.centerY = centerY;
         this.remainingFoamNeeded = foamNeeded;
         this.eventID = eventID;
+        this.faultType = faultType;
+        this.faultTime = faultTime;
     }
 
     // Drone/Scheduler constructor
@@ -57,7 +65,9 @@ public class Message implements Serializable {
                    int centerX,
                    int centerY,
                    double foamNeeded,
-                   String eventID) {
+                   String eventID,
+                   String faultType,
+                   double faultTime) {
         this.type = type;
         this.droneID = droneID;
         this.zoneID = zoneID;
@@ -68,6 +78,8 @@ public class Message implements Serializable {
         this.centerY = centerY;
         this.remainingFoamNeeded = foamNeeded;
         this.eventID = eventID;
+        this.faultType = faultType;
+        this.faultTime = faultTime;
     }
 
     public String getType() { return type; }
@@ -83,6 +95,9 @@ public class Message implements Serializable {
     public double getRemainingFoamNeeded() { return remainingFoamNeeded; }
     public void setRemainingFoamNeeded(double v) { this.remainingFoamNeeded = v; }
 
+    public String getFaultType() { return faultType; }
+    public double getFaultTime() { return faultTime; }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("Message{");
@@ -95,6 +110,9 @@ public class Message implements Serializable {
         sb.append("severity='").append(severity).append("', ");
         sb.append("center=(").append(centerX).append(",").append(centerY).append("), ");
         sb.append("remainingFoamNeeded=").append(remainingFoamNeeded);
+        if (faultType != null && !faultType.isEmpty()) {
+            sb.append(", faultType='").append(faultType).append("', faultTime=").append(faultTime);
+        }
         sb.append("}");
         return sb.toString();
     }

@@ -34,16 +34,32 @@ public class FireIncidentSubsystem implements Runnable {
         loadZoneData("zones.csv");
         List<Message> allEvents = loadAndParseEvents("events.csv");
 
-        // Start receiver to listen for completion confirmations.
         Thread receiverThread = new Thread(new UDPReceiver(socket, m -> {
             if ("FIRE_EXTINGUISHED".equals(m.getType())) {
                 Logger.log("[FireIncidentSubsystem]", "Completion confirmed: " + m);
-                // Optionally, send back a confirmation message.
+                Message confirm = new Message(
+                        "INCIDENT_CONFIRMED",
+                        m.getDroneID(),
+                        m.getZoneID(),
+                        m.getSeverity(),
+                        m.getEventTime(),
+                        m.getEventTimeString(),
+                        m.getCenterX(),
+                        m.getCenterY(),
+                        0.0,
+                        m.getEventID(),
+                        "", 0.0
+                );
+                try {
+                    UDPUtil.sendMessage(confirm, schedulerAddress);
+                    Logger.log("[FireIncidentSubsystem]", "Sent incident confirmation: " + confirm);
+                } catch (IOException e) {
+                    Logger.log("[FireIncidentSubsystem]", "Error sending confirmation: " + e.getMessage());
+                }
             }
         }), "FireIncidentReceiver");
         receiverThread.start();
 
-        // Send fire events to the Scheduler.
         for (Message e : allEvents) {
             try {
                 Logger.log("[FireIncidentSubsystem]", "Sent event: " + e);
@@ -123,6 +139,17 @@ public class FireIncidentSubsystem implements Runnable {
             default:          needed = 10.0;
         }
         String eventID = timeStr + "_Z" + zoneID;
+        // New fault columns: FAULT and FAULT_TIME (if provided)
+        String faultType = "";
+        double faultTime = 0.0;
+        if (parts.length >= 6) {
+            faultType = parts[4].trim();
+            try {
+                faultTime = Double.parseDouble(parts[5].trim());
+            } catch (NumberFormatException ex) {
+                faultTime = 0.0;
+            }
+        }
         return new Message(
                 "ACTIVE_FIRE",
                 zoneID,
@@ -132,7 +159,9 @@ public class FireIncidentSubsystem implements Runnable {
                 cx,
                 cy,
                 needed,
-                eventID
+                eventID,
+                faultType,
+                faultTime
         );
     }
 

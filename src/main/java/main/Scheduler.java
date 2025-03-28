@@ -5,26 +5,24 @@ import java.net.*;
 import java.util.*;
 
 public class Scheduler implements Runnable {
-    // The Scheduler listens on a fixed port specified by schedulerAddress.
     private final InetSocketAddress schedulerAddress;
     private final DatagramSocket socket;
 
-    // Dynamically built mapping: droneID -> drone's InetSocketAddress (from registration)
+    // Mapping from droneID to its InetSocketAddress.
     private final Map<Integer, InetSocketAddress> droneAddressesMap = new HashMap<>();
-    // Internal state for each drone.
+    // Drone statuses.
     private final Map<Integer, String> droneStatus = new HashMap<>();
     private final Map<Integer, Coordinates> droneLocations = new HashMap<>();
     private final Map<Integer, Double> droneFoamMap = new HashMap<>();
 
-    // Queue for pending fire events and duplicate filtering for FIRE_EXTINGUISHED messages.
+    // Queue for pending fire events.
     private final Queue<Message> pendingFires = new LinkedList<>();
     private final Set<String> extinguishedFires = new HashSet<>();
 
-    // (We no longer know the number of fires before runtime.)
-    // Termination logic can be added later if desired.
+    // FireIncidentSubsystem is assumed to run at localhost:5001.
+    private final InetSocketAddress fireIncidentAddress = new InetSocketAddress("localhost", 5001);
 
     public Scheduler(InetSocketAddress schedulerAddress) {
-        // totalFires parameter is ignored because the Scheduler doesn't know fires until they arrive.
         this.schedulerAddress = schedulerAddress;
         try {
             socket = new DatagramSocket(schedulerAddress.getPort());
@@ -36,15 +34,12 @@ public class Scheduler implements Runnable {
 
     @Override
     public void run() {
-        // Start UDPReceiver to process incoming UDP messages.
         Thread receiverThread = new Thread(new UDPReceiver(socket, this::handleMessage), "SchedulerReceiver");
         receiverThread.start();
 
-        // Main loop: check for pending fire events and dispatch if possible.
         while (true) {
             try {
                 dispatchIfPossible();
-                // Optionally, termination conditions can be added here.
                 Thread.sleep(50);
             } catch (InterruptedException e) {
                 Logger.log("[Scheduler]", "Interrupted => shutting down...");
@@ -59,11 +54,9 @@ public class Scheduler implements Runnable {
         String type = m.getType();
         switch (type) {
             case "ACTIVE_FIRE":
-                // A fire event has been received from the FireIncidentSubsystem.
                 pendingFires.add(m);
                 break;
             case "DRONE_REGISTRATION":
-                // Registration message: we use the centerX field to carry the ephemeral port.
                 int ephemeralPort = m.getCenterX();
                 InetSocketAddress droneAddr = new InetSocketAddress("localhost", ephemeralPort);
                 droneAddressesMap.put(dID, droneAddr);
@@ -78,7 +71,6 @@ public class Scheduler implements Runnable {
                 break;
             case "DRONE_RETURNING":
                 droneStatus.put(dID, "DIVERTIBLE");
-                // Save the drone’s current location and remaining foam.
                 droneLocations.put(dID, new Coordinates(m.getCenterX(), m.getCenterY()));
                 droneFoamMap.put(dID, m.getRemainingFoamNeeded());
                 Logger.log("[Scheduler]", "Drone " + dID + " is divertible from " +
@@ -90,21 +82,50 @@ public class Scheduler implements Runnable {
                 droneFoamMap.remove(dID);
                 Logger.log("[Scheduler]", "Drone " + dID + " => IDLE");
                 break;
+            case "DRONE_FAULT":
+                Logger.log("[Scheduler]", "Fault reported by drone " + dID + ": " + m.getFaultType());
+                droneStatus.put(dID, "OFFLINE");
+                Logger.log("[Scheduler]", "Drone " + dID + " marked as OFFLINE.");
+                // Send a shutdown command to the faulty drone.
+                Message shutdownMsg = new Message(
+                        "SHUTDOWN",
+                        dID,
+                        0,
+                        "SHUTDOWN",
+                        m.getEventTime(),
+                        m.getEventTimeString(),
+                        0,
+                        0,
+                        0.0,
+                        m.getEventID(),
+                        "", 0.0
+                );
+                InetSocketAddress target = droneAddressesMap.get(dID);
+                if (target != null) {
+                    try {
+                        UDPUtil.sendMessage(shutdownMsg, target);
+                        Logger.log("[Scheduler]", "Sent SHUTDOWN command to drone " + dID);
+                    } catch (IOException e) {
+                        Logger.log("[Scheduler]", "Error sending SHUTDOWN to drone " + dID + ": " + e.getMessage());
+                    }
+                }
+                break;
             case "FIRE_EXTINGUISHED":
-                // Log the extinguished event.
                 Logger.log("[Scheduler]", "FIRE_EXTINGUISHED received: " + m);
                 try {
-                    UDPUtil.sendMessage(m, new InetSocketAddress("localhost", 5001));
-                    Logger.log("[Scheduler]", "Sent completion message to FireIncidentSubsystem.");
+                    UDPUtil.sendMessage(m, fireIncidentAddress);
+                    Logger.log("[Scheduler]", "Forwarded FIRE_EXTINGUISHED to FireIncidentSubsystem.");
                 } catch (IOException e) {
-                    Logger.log("[Scheduler]", "Error sending completion message: " + e.getMessage());
+                    Logger.log("[Scheduler]", "Error forwarding FIRE_EXTINGUISHED: " + e.getMessage());
                 }
-                // (Optionally, you could update termination state here.)
                 break;
             case "PARTIAL_COVERAGE":
                 if (m.getRemainingFoamNeeded() > 0) {
                     pendingFires.add(m);
                 }
+                break;
+            case "INCIDENT_CONFIRMED":
+                Logger.log("[Scheduler]", "Received INCIDENT_CONFIRMED: " + m);
                 break;
             default:
                 Logger.log("[Scheduler]", "Unhandled message type: " + type);
@@ -112,7 +133,6 @@ public class Scheduler implements Runnable {
     }
 
     private void dispatchIfPossible() throws InterruptedException {
-        // Process fire events from the queue.
         while (!pendingFires.isEmpty()) {
             Message fireEvt = pendingFires.poll();
             List<Integer> availableDrones = getAvailableDrones();
@@ -131,18 +151,17 @@ public class Scheduler implements Runnable {
                 String currentStatus = droneStatus.get(droneID);
                 double foamToUse = Math.min(foamPerDrone, foamNeeded);
                 foamNeeded -= foamToUse;
-                String dispatchType = "DISPATCH_RECEIVED"; // default
+                String dispatchType = "DISPATCH_RECEIVED";
 
                 if ("DIVERTIBLE".equals(currentStatus)) {
                     double availableFoam = droneFoamMap.getOrDefault(droneID, 0.0);
                     Coordinates currLoc = droneLocations.get(droneID);
                     double tDivert = Utility.computeTravelTime(currLoc.getX1(), currLoc.getY1(), fireEvt.getCenterX(), fireEvt.getCenterY());
                     double tFromBase = Utility.computeTravelTime(0, 0, fireEvt.getCenterX(), fireEvt.getCenterY());
-                    // If the drone can reach faster from its current location or its foam nearly matches the event, use DIVERT.
                     if (tDivert < tFromBase || Math.abs(availableFoam - fireEvt.getRemainingFoamNeeded()) <= 0.1) {
                         dispatchType = "DIVERT";
                     } else {
-                        continue; // skip this drone for diversion
+                        continue;
                     }
                 }
 
@@ -156,11 +175,12 @@ public class Scheduler implements Runnable {
                         fireEvt.getCenterX(),
                         fireEvt.getCenterY(),
                         foamToUse,
-                        fireEvt.getEventID()
+                        fireEvt.getEventID(),
+                        fireEvt.getFaultType(),
+                        fireEvt.getFaultTime()
                 );
                 Logger.log("[Scheduler]", dispatchType + " Drone " + droneID + " => " + fireEvt);
                 droneStatus.put(droneID, "EN_ROUTE");
-                // Look up the drone’s registered address.
                 InetSocketAddress target = droneAddressesMap.get(droneID);
                 if (target != null) {
                     try {
@@ -173,10 +193,9 @@ public class Scheduler implements Runnable {
                 }
             }
             if (foamNeeded > 0) {
-                // Requeue the fire event with the remaining foam.
                 Message leftoverFire = new Message(
                         fireEvt.getType(),
-                        fireEvt.getDroneID(),  // might be ignored
+                        fireEvt.getDroneID(),
                         fireEvt.getZoneID(),
                         fireEvt.getSeverity(),
                         fireEvt.getEventTime(),
@@ -184,7 +203,9 @@ public class Scheduler implements Runnable {
                         fireEvt.getCenterX(),
                         fireEvt.getCenterY(),
                         foamNeeded,
-                        fireEvt.getEventID()
+                        fireEvt.getEventID(),
+                        fireEvt.getFaultType(),
+                        fireEvt.getFaultTime()
                 );
                 pendingFires.add(leftoverFire);
                 Logger.log("[Scheduler]", "Fire " + fireEvt.getZoneID() + " still needs " + foamNeeded + " foam, requeueing.");

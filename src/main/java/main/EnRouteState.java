@@ -1,11 +1,5 @@
 package main;
 
-/**
- * EnRouteState:
- * - The drone is traveling to the zone or eventually returning to base.
- * - After traveling, we raise ARRIVE_ZONE => transition to DroppingAgentState, etc.
- * - If traveling to base, we raise ARRIVE_BASE => IDLE.
- */
 public class EnRouteState implements DroneState {
 
     @Override
@@ -15,47 +9,48 @@ public class EnRouteState implements DroneState {
             case DISPATCH_RECEIVED:
                 Logger.log("[EnRouteState-" + droneID + "]", "DISPATCH_RECEIVED => traveling to fire zone.");
                 travelToZone(subsystem, msg);
+                // Arrival successful; cancel any fault timer.
+                subsystem.cancelFaultTimer();
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.ARRIVE_ZONE, msg);
                 break;
-
+            case DRONE_FAULT:
+                Logger.log("[EnRouteState-" + droneID + "]", "DRONE_FAULT event received, transitioning to FaultState.");
+                subsystem.setState("FAULT");
+                subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.DRONE_FAULT, msg);
+                break;
             case RETURN_TO_BASE:
                 if (subsystem.getFoamRemaining() > 0) {
                     Logger.log("[EnRouteState-" + droneID + "]", "Foam remains (" + subsystem.getFoamRemaining() + " kg). Notifying Scheduler and waiting for potential diversion.");
-                    // Send current location in the DRONE_RETURNING message.
                     Coordinates loc = subsystem.getCurrentLocation();
                     subsystem.sendToScheduler(new Message(
                             "DRONE_RETURNING",
                             droneID,
-                            0, // zoneID not applicable
+                            0,
                             "RETURNING",
                             msg.getEventTime(),
                             msg.getEventTimeString(),
                             loc.getX1(),
                             loc.getY1(),
                             subsystem.getFoamRemaining(),
-                            msg.getEventID()
+                            msg.getEventID(),
+                            "", 0.0
                     ));
-                    // Wait briefly (e.g., 500 ms) for a DIVERT command.
                     Thread.sleep(500);
-                    // If no diversion command has been received (handled by Scheduler), the drone will now complete its return.
                     Logger.log("[EnRouteState-" + droneID + "]", "No diversion received => proceeding to base.");
                 }
                 travelBackToBase(subsystem, msg);
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.ARRIVE_BASE, msg);
                 break;
-
             case DIVERT:
                 Logger.log("[EnRouteState-" + droneID + "]", "DIVERT event received. Diverting to new fire zone.");
                 travelToZone(subsystem, msg);
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.ARRIVE_ZONE, msg);
                 break;
-
             case ARRIVE_ZONE:
                 Logger.log("[EnRouteState-" + droneID + "]", "ARRIVE_ZONE => transition to DROPPING state.");
                 subsystem.setState("DROPPING");
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.START_DROPPING, msg);
                 break;
-
             case ARRIVE_BASE:
                 Logger.log("[EnRouteState-" + droneID + "]", "ARRIVE_BASE => transition to IDLE state.");
                 subsystem.setState("IDLE");
@@ -68,11 +63,11 @@ public class EnRouteState implements DroneState {
                         msg.getEventTimeString(),
                         0,
                         0,
-                        0,
-                        msg.getEventID()
+                        0.0,
+                        msg.getEventID(),
+                        "", 0.0
                 ));
                 break;
-
             default:
                 Logger.log("[EnRouteState-" + droneID + "]", "Ignoring event " + event + " while EN_ROUTE.");
         }
