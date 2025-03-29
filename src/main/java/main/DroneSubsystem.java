@@ -59,13 +59,26 @@ public class DroneSubsystem implements Runnable {
         Thread receiverThread = new Thread(new UDPReceiver(socket, m -> {
             try {
                 Logger.log("[DroneSubsystem-" + droneID + "]", "Received message => " + m);
+
+                DroneEvent event;
+                try {
+                    event = DroneEvent.valueOf(m.getType());
+                } catch (IllegalArgumentException e) {
+                    Logger.log("[DroneSubsystem-" + droneID + "]", "Invalid event type: " + m.getType());
+                    return;
+                }
+
                 // If the message is a dispatch (or divert) with fault data, start the fault timer.
-                if ((m.getType().equals("DISPATCH_RECEIVED") || m.getType().equals("DIVERT"))
+                if ((event == DroneEvent.DISPATCH_RECEIVED || event == DroneEvent.DIVERT)
                         && m.getFaultType() != null && !m.getFaultType().isEmpty()
                         && m.getFaultTime() > 0) {
-                    startFaultTimer(m);
+                    if (!timeoutTriggered) {
+                        startFaultTimer(m);
+                    }
+
                 }
-                currentState.handleEvent(this, DroneEvent.DISPATCH_RECEIVED, m);
+//                currentState.handleEvent(this, DroneEvent.DISPATCH_RECEIVED, m);
+                currentState.handleEvent(this, event, m);
             } catch (InterruptedException ex) {
                 Logger.log("[DroneSubsystem-" + droneID + "]", "Interrupted in message handling.");
             }
@@ -200,5 +213,9 @@ public class DroneSubsystem implements Runnable {
         } catch (IOException e) {
             Logger.log("[DroneSubsystem-" + droneID + "]", "Error sending to Scheduler: " + e.getMessage());
         }
+    }
+
+    public void setTimeoutTriggered(boolean value) {
+        timeoutTriggered = value;
     }
 }

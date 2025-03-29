@@ -70,7 +70,7 @@ public class Utility {
             int pct = (int)(frac * 100);
             String bar = buildBar(frac);
             if (subsystem.getTimeoutTriggered()) {
-                System.out.println("STUCK_EN_ROUTE Fault");
+                System.out.println("Drone stopped since there is fault.");
                 return;
             }
             System.out.printf("%s %d%%  %s%n", bar, pct, label);

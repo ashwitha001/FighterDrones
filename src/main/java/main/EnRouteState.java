@@ -10,7 +10,7 @@ public class EnRouteState implements DroneState {
                 Logger.log("[EnRouteState-" + droneID + "]", "DISPATCH_RECEIVED => traveling to fire zone.");
                 travelToZone(subsystem, msg);
                 // Arrival successful; cancel any fault timer.
-                if (!msg.getFaultType().equals("STUCK_EN_ROUTE")) { // possible to get stuck on way back
+                if (!msg.getFaultType().equals("STUCK_EN_ROUTE") || !msg.getFaultType().equals("NOZZLE_JAM")) { // possible to get stuck on way back
                     subsystem.cancelFaultTimer();
                 }
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.ARRIVE_ZONE, msg);
@@ -49,6 +49,12 @@ public class EnRouteState implements DroneState {
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.ARRIVE_ZONE, msg);
                 break;
             case ARRIVE_ZONE:
+                if (subsystem.getTimeoutTriggered()) {
+                    Logger.log("[EnRouteState-" + subsystem.getDroneID() + "]", "Fault already triggered before arriving at fire zone. Skipping foam drop.");
+                    subsystem.setState("FAULT");
+//                    handleEvent(subsystem, DroneEvent.RETURN_TO_BASE, msg);
+                    return;
+                }
                 Logger.log("[EnRouteState-" + droneID + "]", "ARRIVE_ZONE => transition to DROPPING state.");
                 subsystem.setState("DROPPING");
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.START_DROPPING, msg);
@@ -82,7 +88,7 @@ public class EnRouteState implements DroneState {
         double tOut = Utility.computeTravelTime(curr.getX1(), curr.getY1(), tgt.getX1(), tgt.getY1());
         String label = String.format("DRONE-%d traveling from (%d,%d) to (%d,%d)",
                 droneID, curr.getX1(), curr.getY1(), tgt.getX1(), tgt.getY1());
-        if (msg.getFaultType().equals("STUCK_EN_ROUTE")) {
+        if (msg.getFaultType().isEmpty() || msg.getFaultType() != null) {
             Utility.showProgress(tOut, label, subsystem);
             if (subsystem.getTimeoutTriggered()) {
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.DRONE_FAULT, msg);
@@ -106,7 +112,7 @@ public class EnRouteState implements DroneState {
         }
         String label = String.format("DRONE-%d returning from (%d,%d) to (0,0)",
                 droneID, curr.getX1(), curr.getY1());
-        if (msg.getFaultType().equals("STUCK_EN_ROUTE")) {
+        if (msg.getFaultType() != null && !msg.getFaultType().isEmpty()) {
             Utility.showProgress(tBack, label, subsystem);
             if (subsystem.getTimeoutTriggered()) {
                 subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.DRONE_FAULT, msg);
