@@ -29,6 +29,9 @@ public class DroneSubsystem implements Runnable {
     // Fault timer (used to inject faults based on faultTime)
     private Timer faultTimer = null;
 
+        // Flag for when fault happens
+    private volatile boolean timeoutTriggered = false;
+    
     public DroneSubsystem(int droneID, InetSocketAddress schedulerAddress) {
         this.droneID = droneID;
         this.schedulerAddress = schedulerAddress;
@@ -37,7 +40,8 @@ public class DroneSubsystem implements Runnable {
         stateMap.put("IDLE", new IdleState());
         stateMap.put("EN_ROUTE", new EnRouteState());
         stateMap.put("DROPPING", new DroppingAgentState());
-
+        stateMap.put("FAULT", new FaultState());
+        
         currentLocation = new Coordinates(0, 0);
         totalFlightTime = 0.0;
         foamRemaining = FOAM_CAPACITY;
@@ -111,6 +115,7 @@ public class DroneSubsystem implements Runnable {
                             m.getFaultType(),
                             m.getFaultTime()
                     );
+                    timeoutTriggered = true;
                     sendToScheduler(faultMsg);
                 }
             }, (long)(m.getFaultTime() * 1000));
@@ -185,6 +190,10 @@ public class DroneSubsystem implements Runnable {
         return FOAM_CAPACITY;
     }
 
+    public boolean getTimeoutTriggered() {
+        return timeoutTriggered;
+    }
+    
     public void sendToScheduler(Message m) {
         try {
             UDPUtil.sendMessage(m, schedulerAddress);
