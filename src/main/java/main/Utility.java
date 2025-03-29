@@ -62,7 +62,7 @@ public class Utility {
         }
     }
 
-        public static void showProgress(double totalTime, String label, DroneSubsystem subsystem) throws InterruptedException {
+    public static void showProgress(double totalTime, String label, DroneSubsystem subsystem) throws InterruptedException {
         final int STEPS = 10;
         double stepDur = totalTime / STEPS;
         for (int i = 0; i <= STEPS; i++) {
