@@ -174,6 +174,10 @@ public class DroneSubsystem implements Runnable {
         }
     }
 
+    public Map <String, DroneState> getStateMap() {
+        return stateMap;
+    }
+
     public void setLastKnownMessage(Message msg) {
         this.lastKnownMessage = msg;
     }
