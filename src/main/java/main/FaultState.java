@@ -13,6 +13,10 @@ public class FaultState implements DroneState {
             Logger.log("[FaultState-" + droneID + "]", "Fault detected: " + msg.getFaultType() +
                     ". Waiting for shutdown command from Scheduler.");
             // Optionally, continue waiting or perform local recovery here.
+        } else if (event == DroneEvent.DISPATCH_RECEIVED) {
+            Logger.log("[FaultState-" + droneID + "]", "Fault detected: " + msg.getFaultType() +
+                    ". Waiting for shutdown command from Scheduler.");
+            subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.valueOf(msg.getType()), msg);
         } else {
             Logger.log("[FaultState-" + droneID + "]", "In FaultState, ignoring event: " + event);
         }
