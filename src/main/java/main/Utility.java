@@ -62,6 +62,24 @@ public class Utility {
         }
     }
 
+        public static void showProgress(double totalTime, String label, DroneSubsystem subsystem) throws InterruptedException {
+        final int STEPS = 10;
+        double stepDur = totalTime / STEPS;
+        for (int i = 0; i <= STEPS; i++) {
+            double frac = i / (double) STEPS;
+            int pct = (int)(frac * 100);
+            String bar = buildBar(frac);
+            if (subsystem.getTimeoutTriggered()) {
+                System.out.println("STUCK_EN_ROUTE Fault");
+                return;
+            }
+            System.out.printf("%s %d%%  %s%n", bar, pct, label);
+            if (i < STEPS) {
+                Thread.sleep((long)(stepDur * 250));
+            }
+        }
+    }
+    
     private static String buildBar(double fraction) {
         final int WIDTH = 20;
         int fill = (int)Math.round(WIDTH * fraction);
