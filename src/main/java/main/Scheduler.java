@@ -105,6 +105,23 @@ public class Scheduler implements Runnable {
                     try {
                         UDPUtil.sendMessage(shutdownMsg, target);
                         Logger.log("[Scheduler]", "Sent SHUTDOWN command to drone " + dID);
+                        Message fire = new Message(
+                                "ACTIVE_FIRE",
+                                m.getZoneID(),
+                                m.getSeverity(),
+                                m.getEventTime(),
+                                m.getEventTimeString(),
+                                m.getCenterX(),
+                                m.getCenterY(),
+                                m.getRemainingFoamNeeded(),
+                                m.getEventID(),
+                                "",
+                                0
+                        );
+                        if (!(m.getRemainingFoamNeeded() == 0)) {
+                            Logger.log("[Scheduler]", "Requeue fire, drone shutdown");
+                            pendingFires.add(fire);
+                        }
                     } catch (IOException e) {
                         Logger.log("[Scheduler]", "Error sending SHUTDOWN to drone " + dID + ": " + e.getMessage());
                     }
@@ -191,8 +208,28 @@ public class Scheduler implements Runnable {
                 } else {
                     Logger.log("[Scheduler]", "No registered address for drone " + droneID);
                 }
+                                // If this fire has a fault, requeue it once with cleared fault info
+                if (fireEvt.getFaultType() != null && !fireEvt.getFaultType().isEmpty() && foamNeeded > 0) {
+                    Message retryFire = new Message(
+                            fireEvt.getType(),
+                            0,
+                            fireEvt.getZoneID(),
+                            fireEvt.getSeverity(),
+                            fireEvt.getEventTime(),
+                            fireEvt.getEventTimeString(),
+                            fireEvt.getCenterX(),
+                            fireEvt.getCenterY(),
+                            foamNeeded,  // Add back full foam needed
+                            fireEvt.getEventID(),
+                            "", // Clear the fault type
+                            fireEvt.getFaultTime()
+                    );
+                    pendingFires.add(retryFire);
+                    Logger.log("[Scheduler]", "Requeued fire with cleared faultType: " + retryFire);
+                    break;
+                }
             }
-            if (foamNeeded > 0) {
+            if (foamNeeded > 0 && fireEvt.getFaultType().isEmpty()) {
                 Message leftoverFire = new Message(
                         fireEvt.getType(),
                         fireEvt.getDroneID(),
