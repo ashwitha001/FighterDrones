@@ -31,6 +31,9 @@ public class DroneSubsystem implements Runnable {
 
         // Flag for when fault happens
     private volatile boolean timeoutTriggered = false;
+
+    private volatile boolean isShutDown = false;
+    private volatile Message lastKnownMessage = null;  // 🆕 store the last message
     
     public DroneSubsystem(int droneID, InetSocketAddress schedulerAddress) {
         this.droneID = droneID;
@@ -144,7 +147,7 @@ public class DroneSubsystem implements Runnable {
 
     @Override
     public void run() {
-        while (!Thread.currentThread().isInterrupted()) {
+        while (!Thread.currentThread().isInterrupted() && !isShutDown) {
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -153,6 +156,14 @@ public class DroneSubsystem implements Runnable {
                 break;
             }
         }
+        Logger.log("[DroneSubsystem-" + droneID + "]", "System shutdown.");
+    }
+
+    public void resetConnection() throws InterruptedException {
+        Logger.log("[DroneSubsystem-" + droneID + "]", "resetting connection...");
+        Thread.sleep(10000);
+        Logger.log("[DroneSubsystem-" + droneID + "]", "resuming operations.");
+        setTimeoutTriggered(false); // ✅ clear fault flag after reset
     }
 
     public void setState(String stateName) {
@@ -162,6 +173,16 @@ public class DroneSubsystem implements Runnable {
             Logger.log("[DroneSubsystem-" + droneID + "]", "No such state => " + stateName + ". Keeping current state.");
         }
     }
+
+    public void setLastKnownMessage(Message msg) {
+        this.lastKnownMessage = msg;
+    }
+
+    public Message getLastKnownMessage() {
+        return this.lastKnownMessage;
+    }
+    public boolean isShutDown() { return isShutDown; }
+    public void shutDown() { isShutDown = true; }
 
     public DroneState getCurrentState() {
         return currentState;

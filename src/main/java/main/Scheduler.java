@@ -86,47 +86,105 @@ public class Scheduler implements Runnable {
                 Logger.log("[Scheduler]", "Fault reported by drone " + dID + ": " + m.getFaultType());
                 droneStatus.put(dID, "OFFLINE");
                 Logger.log("[Scheduler]", "Drone " + dID + " marked as OFFLINE.");
-                // Send a shutdown command to the faulty drone.
-                Message shutdownMsg = new Message(
-                        "SHUTDOWN",
-                        dID,
-                        0,
-                        "SHUTDOWN",
-                        m.getEventTime(),
-                        m.getEventTimeString(),
-                        0,
-                        0,
-                        0.0,
-                        m.getEventID(),
-                        "", 0.0
-                );
-                InetSocketAddress target = droneAddressesMap.get(dID);
-                if (target != null) {
-                    try {
-                        UDPUtil.sendMessage(shutdownMsg, target);
-                        Logger.log("[Scheduler]", "Sent SHUTDOWN command to drone " + dID);
-                        Message fire = new Message(
-                                "ACTIVE_FIRE",
-                                m.getZoneID(),
-                                m.getSeverity(),
+                switch (m.getFaultType()) {
+                    case "NOZZLE_JAM":
+                        Logger.log ("[Scheduler]", "Drone " + dID + " has a nozzle jam. Requesting return to base for repairs.");
+                        Message returnMsg = new Message(
+                                "RETURN_TO_BASE",
+                                dID,
+                                0,
+                                "RETURNING",
                                 m.getEventTime(),
                                 m.getEventTimeString(),
-                                m.getCenterX(),
-                                m.getCenterY(),
-                                m.getRemainingFoamNeeded(),
+                                0,
+                                0,
+                                0.0,
                                 m.getEventID(),
-                                "",
-                                0
+                                "", 0.0
                         );
-                        if (!(m.getRemainingFoamNeeded() == 0)) {
-                            Logger.log("[Scheduler]", "Requeue fire, drone shutdown");
-                            pendingFires.add(fire);
+                        InetSocketAddress target = droneAddressesMap.get(dID);
+                        if (target != null) {
+                            try {
+                                UDPUtil.sendMessage(returnMsg, target);
+                                Logger.log("[Scheduler]", "Sent RETURN_TO_BASE command to drone " + dID);
+                            } catch (IOException e) {
+                                Logger.log("[Scheduler]", "Error sending RETURN_TO_BASE to drone " + dID + ": " + e.getMessage());
+                            }
                         }
-                    } catch (IOException e) {
-                        Logger.log("[Scheduler]", "Error sending SHUTDOWN to drone " + dID + ": " + e.getMessage());
-                    }
+                        break;
+                    case "STUCK_EN_ROUTE":
+                        Logger.log("[Scheduler]", "Drone " + dID + " is stuck en route. Shutting down for manual intervention.");
+                        // Send a shutdown command to the faulty drone.
+                        Message shutdownMsg = new Message(
+                                "SHUTDOWN",
+                                dID,
+                                0,
+                                "SHUTDOWN",
+                                m.getEventTime(),
+                                m.getEventTimeString(),
+                                0,
+                                0,
+                                0.0,
+                                m.getEventID(),
+                                "", 0.0
+                        );
+                        target = droneAddressesMap.get(dID);
+                        if (target != null) {
+                            try {
+                                UDPUtil.sendMessage(shutdownMsg, target);
+                                Logger.log("[Scheduler]", "Sent SHUTDOWN command to drone " + dID);
+                                Message fire = new Message(
+                                        "ACTIVE_FIRE",
+                                        m.getZoneID(),
+                                        m.getSeverity(),
+                                        m.getEventTime(),
+                                        m.getEventTimeString(),
+                                        m.getCenterX(),
+                                        m.getCenterY(),
+                                        m.getRemainingFoamNeeded(),
+                                        m.getEventID(),
+                                        "",
+                                        0
+                                );
+                                if (!(m.getRemainingFoamNeeded() == 0)) {
+                                    Logger.log("[Scheduler]", "Requeue fire, drone shutdown");
+                                    pendingFires.add(fire);
+                                }
+                            } catch (IOException e) {
+                                Logger.log("[Scheduler]", "Error sending SHUTDOWN to drone " + dID + ": " + e.getMessage());
+                            }
+                        }
+                        break;
+                    case "COMMS_FAULT":
+                        Logger.log("[Scheduler]", "Drone " + dID + " has a comms fault. Resetting connection.");
+                        Message resetMsg = new Message(
+                                "RESET_CONNECTION",
+                                dID,
+                                0,
+                                "RESET",
+                                m.getEventTime(),
+                                m.getEventTimeString(),
+                                0,
+                                0,
+                                0.0,
+                                m.getEventID(),
+                                "", 0.0
+                        );
+                        target = droneAddressesMap.get(dID);
+                        if (target != null) {
+                            try {
+                                UDPUtil.sendMessage(resetMsg, target);
+                                Logger.log("[Scheduler]", "Sent RESET_CONNECTION command to drone " + dID);
+                            } catch (IOException e) {
+                                Logger.log("[Scheduler]", "Error sending RESET_CONNECTION to drone " + dID + ": " + e.getMessage());
+                            }
+                        }
+                        break;
+                    default:
+                        Logger.log("[Scheduler]", "Unknown fault type for drone " + dID + ": " + m.getFaultType());
+                        break;
                 }
-                break;
+
             case "FIRE_EXTINGUISHED":
                 Logger.log("[Scheduler]", "FIRE_EXTINGUISHED received: " + m);
                 try {

@@ -14,5 +14,6 @@ public enum DroneEvent {
     DIVERT,             // Drone is diverted to a new fire zone
     ARRIVE_BASE,        // Drone arrives at base
     DRONE_FAULT,        // Drone detects a fault (e.g., stuck, nozzle jam)
-    SHUTDOWN            // Shutdown command from Scheduler
+    SHUTDOWN,            // Shutdown command from Scheduler
+    RESET_CONNECTION
 }
