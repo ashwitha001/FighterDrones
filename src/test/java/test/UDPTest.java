@@ -69,7 +69,7 @@ class UDPTest {
     void UDPReceiverTest() throws Exception {
         //set up the receiver
         BlockingQueue<Message> receivedMessages = new LinkedBlockingQueue<>();
-        UDPReceiver receiver = new UDPReceiver(socket, receivedMessages::offer);
+        UDPReceiver receiver = new UDPReceiver(socket, receivedMessages::add);
         exec.execute(receiver);
 
         Message testMessage = new Message(
