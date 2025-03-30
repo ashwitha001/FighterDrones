@@ -27,7 +27,7 @@ public class MessageTest {
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         timeString = "14:50:45";
         localTime = LocalTime.parse(timeString, timeFormatter);
-        msg  = new Message("ACTIVE_FIRE",1,1,"HIGH", localTime, timeString,1,1,5,"1");
+        msg  = new Message("ACTIVE_FIRE",1,1,"HIGH", localTime, timeString,1,1,5,"1","", 0.0);
     }
 
     /**
@@ -40,11 +40,20 @@ public class MessageTest {
     }
 
     /**
+     * Testing getter for type for Message
+     *
+     */
+    @Test
+    void testDroneID(){
+        assertEquals(1,msg.getDroneID());
+    }
+
+    /**
      * Testing getter for zoneID for Message
      *
      */
     @Test
-    void testID(){
+    void testZoneID(){
         assertEquals(1,msg.getZoneID());
     }
 
@@ -112,6 +121,29 @@ public class MessageTest {
     }
 
     /**
+     * Testing getter for eventID for Message
+     *
+     */
+    @Test
+    void testeventID(){
+        assertEquals("1",msg.getEventID());
+    }
+
+    /**
+     * Testing getter for faultType for Message
+     *
+     */
+    @Test
+    void testFaultType() { assertEquals("", msg.getFaultType());}
+
+    /**
+     * Testing getter for faultTime for Message
+     *
+     */
+    @Test
+    void testFaultTime() { assertEquals(0.0, msg.getFaultTime());}
+
+    /**
      * Testing toString for Message
      *
      */
@@ -119,5 +151,6 @@ public class MessageTest {
     void testMessageString(){
         String expectedString = "Message{time='14:50:45', type='ACTIVE_FIRE', droneID=1, zoneID=1, severity='HIGH', center=(1,1), remainingFoamNeeded=5.0}";
         assertEquals(expectedString,msg.toString());
+        //there should be no fault type or time in the toString because the type is "" and the time is 0.0
     }
 }
