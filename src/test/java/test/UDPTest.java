@@ -44,8 +44,10 @@ class UDPTest {
                 LocalTime.now(),    // eventTime
                 "11:11:11",         // eventTimeString
                 100, 200,   // centerX, centerY
-                50.0,              // remainingFoamNeeded
-                "12345"            // eventID
+                50.0,               // remainingFoamNeeded
+                "12345",            // eventID
+                "",                 // faultType
+                0.0                 // faultTime
         );
 
         InetSocketAddress destination = new InetSocketAddress("localhost", PORT);
@@ -79,7 +81,9 @@ class UDPTest {
                 "11:11:11",         // eventTimeString
                 100, 200,   // centerX, centerY
                 30.5,               // remainingFoamNeeded
-                "12345"             // eventID
+                "12345",            // eventID
+                "",                 // faultType
+                0.0                 // faultTime
         );
 
         InetSocketAddress destination = new InetSocketAddress("localhost", PORT);
@@ -98,6 +102,8 @@ class UDPTest {
         assertEquals(200, received.getCenterY());
         assertEquals(30.5, received.getRemainingFoamNeeded());
         assertEquals("12345", received.getEventID());
+        assertEquals("", received.getFaultType());
+        assertEquals(0.0, received.getFaultTime());
     }
 
     //test error handling with bad data
