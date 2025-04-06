@@ -33,28 +33,78 @@ public class Scheduler implements Runnable {
             throw new RuntimeException("Could not bind Scheduler socket on port " + schedulerAddress.getPort(), e);
         }
     }
-
     private void updateUI(Message m) {
         if (m == null) return;
-        
+
         switch (m.getType()) {
             case "ACTIVE_FIRE":
                 ui.updateFireStatus(m.getZoneID(), m.getSeverity());
                 break;
+
             case "FIRE_EXTINGUISHED":
                 ui.updateFireStatus(m.getZoneID(), "EXTINGUISHED");
                 break;
-            // have not implemented drone ui yet...
+
+            // === DRONE STATE UPDATES ===
+
             case "DRONE_REGISTERED":
             case "DRONE_READY":
+                ui.updateDroneLocation(m.getDroneID(), m.getCenterX(), m.getCenterY(), "READY");
+                break;
+
             case "DISPATCH_RECEIVED":
-            case "DIVERT":
-            case "RETURNING":
+                ui.updateDroneLocation(m.getDroneID(), m.getCenterX(), m.getCenterY(), "OUTBOUND");
+                break;
+
             case "EXTINGUISHING":
-            case "DRONE_COORD_UDPATING":
+                ui.updateDroneLocation(m.getDroneID(), m.getCenterX(), m.getCenterY(), "EXTINGUISHING");
+                break;
+
+            case "RETURNING":
+                ui.updateDroneLocation(m.getDroneID(), m.getCenterX(), m.getCenterY(), "RETURNING");
+                break;
+
+            case "DIVERT":
+                ui.updateDroneLocation(m.getDroneID(), m.getCenterX(), m.getCenterY(), "DIVERTED");
+                break;
+
+            case "DRONE_COORD_UPDATE":
+                // Store latest location in map
+                Coordinates updated = new Coordinates(m.getCenterX(), m.getCenterY());
+                droneLocations.put(m.getDroneID(), updated);
+
+                // Update Simulation UI
+                if (ui != null) {
+                    ui.updateDroneLocation(m.getDroneID(), updated.getX1(), updated.getY1(), "EN_ROUTE");
+                }
+
+                Logger.log("[Scheduler]", "Updated position for drone " + m.getDroneID() + ": " + updated);
                 break;
         }
     }
+
+
+//    private void updateUI(Message m) {
+//        if (m == null) return;
+//
+//        switch (m.getType()) {
+//            case "ACTIVE_FIRE":
+//                ui.updateFireStatus(m.getZoneID(), m.getSeverity());
+//                break;
+//            case "FIRE_EXTINGUISHED":
+//                ui.updateFireStatus(m.getZoneID(), "EXTINGUISHED");
+//                break;
+//            // have not implemented drone ui yet...
+//            case "DRONE_REGISTERED":
+//            case "DRONE_READY":
+//            case "DISPATCH_RECEIVED":
+//            case "DIVERT":
+//            case "RETURNING":
+//            case "EXTINGUISHING":
+//            case "DRONE_COORD_UDPATING":
+//                break;
+//        }
+//    }
 
     @Override
     public void run() {
@@ -206,18 +256,6 @@ public class Scheduler implements Runnable {
                                 Logger.log("[Scheduler]", "Error sending RESET_CONNECTION to drone " + dID + ": " + e.getMessage());
                             }
                         }
-                        break;
-                    case "DRONE_COORD_UPDATE":
-                        // Store latest location in map
-                        Coordinates updated = new Coordinates(m.getCenterX(), m.getCenterY());
-                        droneLocations.put(dID, updated);
-
-                        // Update Simulation UI
-                        if (ui != null) {
-                            ui.updateDroneLocation(dID, updated.getX1(), updated.getY1(), "EN_ROUTE");
-                        }
-
-                        Logger.log("[Scheduler]", "Updated position for drone " + dID + ": " + updated);
                         break;
                     default:
                         Logger.log("[Scheduler]", "Unknown fault type for drone " + dID + ": " + m.getFaultType());
