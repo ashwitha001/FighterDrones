@@ -47,7 +47,8 @@ public class Scheduler implements Runnable {
 
             // === DRONE STATE UPDATES ===
 
-            case "DRONE_REGISTERED":
+            case "DRONE_REGISTRATION":
+
             case "DRONE_READY":
                 ui.updateDroneLocation(m.getDroneID(), m.getCenterX(), m.getCenterY(), "READY");
                 break;
@@ -134,11 +135,21 @@ public class Scheduler implements Runnable {
                 pendingFires.add(m);
                 break;
             case "DRONE_REGISTRATION":
-                int ephemeralPort = m.getCenterX();
-                InetSocketAddress droneAddr = new InetSocketAddress("localhost", ephemeralPort);
-                droneAddressesMap.put(dID, droneAddr);
-                droneStatus.put(dID, "IDLE");
-                Logger.log("[Scheduler]", "Registered drone " + dID + " at " + droneAddr);
+                int droneId = m.getDroneID();
+                int dronePort = m.getCenterX(); // Drone's ephemeral port is passed in centerX
+                InetSocketAddress droneAddress = new InetSocketAddress("localhost", dronePort);
+
+                // Store the drone's address
+                droneAddressesMap.put(droneId, droneAddress);
+
+                // Initialize drone status and location
+                droneStatus.put(droneId, "IDLE");
+                droneLocations.put(droneId, new Coordinates(0, 0));
+                droneFoamMap.put(droneId, DroneSubsystem.getFoamCapacity());
+
+                // Update UI
+                ui.updateDroneLocation(droneId, 0, 0, "READY");
+                Logger.log("[Scheduler]", "Registered Drone " + droneId + " on port " + dronePort);
                 break;
             case "DRONE_EN_ROUTE":
                 droneStatus.put(dID, "EN_ROUTE");
