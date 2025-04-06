@@ -12,6 +12,8 @@ import java.util.TimerTask;
 
 public class DroneSubsystem implements Runnable {
 
+    private SimulationUI simulationUI = null;
+
     private static final double MAX_BATTERY_SECONDS = 3600.0;
     private static final double FOAM_CAPACITY = 15.0;
 
@@ -242,5 +244,13 @@ public class DroneSubsystem implements Runnable {
 
     public void setTimeoutTriggered(boolean value) {
         timeoutTriggered = value;
+    }
+
+    public void setSimulationUI(SimulationUI ui) {
+        this.simulationUI = ui;
+    }
+
+    public SimulationUI getSimulationUI() {
+        return simulationUI;
     }
 }

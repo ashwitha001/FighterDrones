@@ -19,7 +19,9 @@ public class SimulationUI extends JFrame {
     // Maps to store simulation state
     private final Map<Integer, Rectangle> zones = new HashMap<>();         // Zone ID -> Zone boundaries
     private final Map<Integer, String> fires = new HashMap<>();           // Zone ID -> Fire severity
-    
+    private final Map<Integer, Coordinates> droneLocations = new HashMap<>();
+    private final Map<Integer, String> droneStatuses = new HashMap<>(); // OUTBOUND, RETURNING, WORKING, FAULT
+
     private final JPanel mainPanel;
     private int maxX = 0;
     private int maxY = 0;
@@ -173,6 +175,26 @@ public class SimulationUI extends JFrame {
                 drawFire(g2d, zone, fires.get(zoneId));
             }
         }
+
+        // Draw drones
+        for (Map.Entry<Integer, Coordinates> entry : droneLocations.entrySet()) {
+            int droneId = entry.getKey();
+            Coordinates pos = entry.getValue();
+            String status = droneStatuses.getOrDefault(droneId, "OUTBOUND");
+
+            Color color = switch (status) {
+                case "OUTBOUND" -> Color.BLUE;
+                case "RETURNING" -> new Color(128, 0, 128);
+                case "WORKING" -> new Color(30, 110, 50);
+                case "FAULT" -> Color.RED;
+                default -> Color.GRAY;
+            };
+
+            g2d.setColor(color);
+            g2d.fillOval(pos.getX1() - 5, pos.getY1() - 5, 10, 10); // Small circle for drone
+            g2d.drawString("D" + droneId, pos.getX1() + 6, pos.getY1());
+        }
+
     }
 
     // Draw grid lines aligned with zone boundaries
@@ -215,6 +237,21 @@ public class SimulationUI extends JFrame {
 
     public void clearFireStatus(int zoneId) {
         fires.remove(zoneId);
+        mainPanel.repaint();
+    }
+
+    public void updateDroneLocation(int droneId, int x, int y, String status) {
+        SwingUtilities.invokeLater(() -> {
+            Coordinates coords = new Coordinates(x / SCALE, y / SCALE); // Scale down the coordinates
+            droneLocations.put(droneId, coords);
+            droneStatuses.put(droneId, status);
+            mainPanel.repaint();
+        });
+    }
+
+    public void removeDrone(int droneId) {
+        droneLocations.remove(droneId);
+        droneStatuses.remove(droneId);
         mainPanel.repaint();
     }
 }

@@ -1,7 +1,5 @@
 package main;
 
-import java.time.LocalTime;
-
 public class EnRouteState implements DroneState {
 
     @Override
@@ -90,22 +88,13 @@ public class EnRouteState implements DroneState {
         double tOut = Utility.computeTravelTime(curr.getX1(), curr.getY1(), tgt.getX1(), tgt.getY1());
         String label = String.format("DRONE-%d traveling from (%d,%d) to (%d,%d)",
                 droneID, curr.getX1(), curr.getY1(), tgt.getX1(), tgt.getY1());
-        if (msg.getFaultType().isEmpty() || msg.getFaultType() != null) {
-            Utility.showProgress(tOut, label, subsystem);
-            if (subsystem.getTimeoutTriggered()) {
-                subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.DRONE_FAULT, msg);
-            }
+
+        Utility.showProgress(tOut, label, subsystem, curr.getX1(), curr.getY1(), tgt.getX1(), tgt.getY1());
+        if (subsystem.getTimeoutTriggered()) {
+            subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.DRONE_FAULT, msg);
         }
-        else {
-            Utility.showProgress(tOut, label);
-        }
-        subsystem.setCurrentLocation(tgt);
+
         subsystem.setTotalFlightTime(subsystem.getTotalFlightTime() + tOut);
-        
-        // Update the event time in the message
-        LocalTime updatedTime = msg.getEventTime().plusSeconds((long)tOut);
-        msg.setEventTime(updatedTime);
-        msg.setEventTimeString(updatedTime.toString());
     }
 
     private void travelBackToBase(DroneSubsystem subsystem, Message msg) throws InterruptedException {
@@ -119,24 +108,13 @@ public class EnRouteState implements DroneState {
         }
         String label = String.format("DRONE-%d returning from (%d,%d) to (0,0)",
                 droneID, curr.getX1(), curr.getY1());
-        if (msg.getFaultType() != null && !msg.getFaultType().isEmpty()) {
-            Utility.showProgress(tBack, label, subsystem);
-            if (subsystem.getTimeoutTriggered()) {
-                subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.DRONE_FAULT, msg);
-            }
+        Utility.showProgress(tBack, label, subsystem, curr.getX1(), curr.getY1(), 0, 0);
+        if (subsystem.getTimeoutTriggered()) {
+            subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.DRONE_FAULT, msg);
         }
-        else {
-            Utility.showProgress(tBack, label);
-            subsystem.setCurrentLocation(new Coordinates(0, 0));
-            subsystem.setTotalFlightTime(newTotal);
-            Logger.log("[EnRouteState-" + droneID + "]", "Refueling foam & battery at base.");
-            subsystem.setTotalFlightTime(0.0);
-            subsystem.setFoamRemaining(DroneSubsystem.getFoamCapacity());
-            
-            // Update the event time in the message
-            LocalTime updatedTime = msg.getEventTime().plusSeconds((long)tBack);
-            msg.setEventTime(updatedTime);
-            msg.setEventTimeString(updatedTime.toString());
-        }
+        subsystem.setTotalFlightTime(newTotal);
+        Logger.log("[EnRouteState-" + droneID + "]", "Refueling foam & battery at base.");
+        subsystem.setTotalFlightTime(0.0);
+        subsystem.setFoamRemaining(DroneSubsystem.getFoamCapacity());
     }
 }

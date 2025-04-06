@@ -51,6 +51,7 @@ public class Scheduler implements Runnable {
             case "DIVERT":
             case "RETURNING":
             case "EXTINGUISHING":
+            case "DRONE_COORD_UDPATING":
                 break;
         }
     }
@@ -205,6 +206,18 @@ public class Scheduler implements Runnable {
                                 Logger.log("[Scheduler]", "Error sending RESET_CONNECTION to drone " + dID + ": " + e.getMessage());
                             }
                         }
+                        break;
+                    case "DRONE_COORD_UPDATE":
+                        // Store latest location in map
+                        Coordinates updated = new Coordinates(m.getCenterX(), m.getCenterY());
+                        droneLocations.put(dID, updated);
+
+                        // Update Simulation UI
+                        if (ui != null) {
+                            ui.updateDroneLocation(dID, updated.getX1(), updated.getY1(), "EN_ROUTE");
+                        }
+
+                        Logger.log("[Scheduler]", "Updated position for drone " + dID + ": " + updated);
                         break;
                     default:
                         Logger.log("[Scheduler]", "Unknown fault type for drone " + dID + ": " + m.getFaultType());
@@ -367,4 +380,9 @@ public class Scheduler implements Runnable {
         }
         return available;
     }
+
+    public SimulationUI getUI() {
+        return ui;
+    }
+
 }

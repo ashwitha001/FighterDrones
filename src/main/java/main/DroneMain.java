@@ -19,6 +19,7 @@ public class DroneMain {
         // Scheduler is assumed to run on localhost:5000.
         InetSocketAddress schedulerAddress = new InetSocketAddress("localhost", 5000);
         Logger.log("[DroneMain-" + droneID + "]", "Starting DroneSubsystem with ID " + droneID);
+
         DroneSubsystem drone = new DroneSubsystem(droneID, schedulerAddress);
         Thread droneThread = new Thread(drone, "DroneSubsystem-" + droneID);
         droneThread.start();
