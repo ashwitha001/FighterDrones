@@ -7,6 +7,7 @@ import java.util.*;
 public class Scheduler implements Runnable {
     private final InetSocketAddress schedulerAddress;
     private final DatagramSocket socket;
+    private final SimulationUI ui;
 
     // Mapping from droneID to its InetSocketAddress.
     private final Map<Integer, InetSocketAddress> droneAddressesMap = new HashMap<>();
@@ -22,8 +23,9 @@ public class Scheduler implements Runnable {
     // FireIncidentSubsystem is assumed to run at localhost:5001.
     private final InetSocketAddress fireIncidentAddress = new InetSocketAddress("localhost", 5001);
 
-    public Scheduler(InetSocketAddress schedulerAddress) {
+    public Scheduler(InetSocketAddress schedulerAddress, SimulationUI ui) {
         this.schedulerAddress = schedulerAddress;
+        this.ui = ui;
         try {
             socket = new DatagramSocket(schedulerAddress.getPort());
             Logger.log("[Scheduler]", "Listening on port " + schedulerAddress.getPort());
@@ -32,9 +34,33 @@ public class Scheduler implements Runnable {
         }
     }
 
+    private void updateUI(Message m) {
+        if (m == null) return;
+        
+        switch (m.getType()) {
+            case "ACTIVE_FIRE":
+                ui.updateFireStatus(m.getZoneID(), m.getSeverity());
+                break;
+            case "FIRE_EXTINGUISHED":
+                ui.updateFireStatus(m.getZoneID(), "EXTINGUISHED");
+                break;
+            // have not implemented drone ui yet...
+            case "DRONE_REGISTERED":
+            case "DRONE_READY":
+            case "DISPATCH_RECEIVED":
+            case "DIVERT":
+            case "RETURNING":
+            case "EXTINGUISHING":
+                break;
+        }
+    }
+
     @Override
     public void run() {
-        Thread receiverThread = new Thread(new UDPReceiver(socket, this::handleMessage), "SchedulerReceiver");
+        Thread receiverThread = new Thread(new UDPReceiver(socket, m -> {
+            handleMessage(m);
+            updateUI(m);
+        }), "SchedulerReceiver");
         receiverThread.start();
 
         while (true) {
@@ -208,103 +234,126 @@ public class Scheduler implements Runnable {
     }
 
     private void dispatchIfPossible() throws InterruptedException {
+        if (pendingFires.isEmpty()) return;
+
+        // prioritize fires: HIGH > MODERATE > LOW
+        List<Message> prioritizedFires = new ArrayList<>();
         while (!pendingFires.isEmpty()) {
-            Message fireEvt = pendingFires.poll();
+            prioritizedFires.add(pendingFires.poll());
+        }
+        prioritizedFires.sort((a, b) -> getSeverityValue(b.getSeverity()) - getSeverityValue(a.getSeverity()));
+
+        // Process each fire in priority order
+        for (Message fire : prioritizedFires) {
+            // Skip if no drones available
             List<Integer> availableDrones = getAvailableDrones();
             if (availableDrones.isEmpty()) {
-                pendingFires.add(fireEvt);
-                break;
+                pendingFires.add(fire);
+                continue;
             }
-            double foamNeeded = fireEvt.getRemainingFoamNeeded();
-            double foamPerDrone = DroneSubsystem.getFoamCapacity();
-            int requiredDrones = (int) Math.ceil(foamNeeded / foamPerDrone);
-            List<Integer> assignedDrones = new ArrayList<>();
-            for (int i = 0; i < Math.min(requiredDrones, availableDrones.size()); i++) {
-                assignedDrones.add(availableDrones.get(i));
-            }
-            for (int droneID : assignedDrones) {
-                String currentStatus = droneStatus.get(droneID);
-                double foamToUse = Math.min(foamPerDrone, foamNeeded);
-                foamNeeded -= foamToUse;
-                String dispatchType = "DISPATCH_RECEIVED";
 
-                if ("DIVERTIBLE".equals(currentStatus)) {
-                    double availableFoam = droneFoamMap.getOrDefault(droneID, 0.0);
-                    Coordinates currLoc = droneLocations.get(droneID);
-                    double tDivert = Utility.computeTravelTime(currLoc.getX1(), currLoc.getY1(), fireEvt.getCenterX(), fireEvt.getCenterY());
-                    double tFromBase = Utility.computeTravelTime(0, 0, fireEvt.getCenterX(), fireEvt.getCenterY());
-                    if (tDivert < tFromBase || Math.abs(availableFoam - fireEvt.getRemainingFoamNeeded()) <= 0.1) {
-                        dispatchType = "DIVERT";
-                    } else {
-                        continue;
-                    }
-                }
+            double remainingFoam = fire.getRemainingFoamNeeded();
 
-                Message dispatchMsg = new Message(
-                        dispatchType,
-                        droneID,
-                        fireEvt.getZoneID(),
-                        fireEvt.getSeverity(),
-                        fireEvt.getEventTime(),
-                        fireEvt.getEventTimeString(),
-                        fireEvt.getCenterX(),
-                        fireEvt.getCenterY(),
-                        foamToUse,
-                        fireEvt.getEventID(),
-                        fireEvt.getFaultType(),
-                        fireEvt.getFaultTime()
+            // First try to use nearby drones that are returning with foam
+            for (Integer droneId : availableDrones) {
+                if (!"DIVERTIBLE".equals(droneStatus.get(droneId))) continue;
+
+                // Check if diversion is efficient
+                Coordinates droneLoc = droneLocations.get(droneId);
+                double timeToReachFromHere = Utility.computeTravelTime(
+                    droneLoc.getX1(), droneLoc.getY1(), 
+                    fire.getCenterX(), fire.getCenterY()
                 );
-                Logger.log("[Scheduler]", dispatchType + " Drone " + droneID + " => " + fireEvt);
-                droneStatus.put(droneID, "EN_ROUTE");
-                InetSocketAddress target = droneAddressesMap.get(droneID);
-                if (target != null) {
-                    try {
-                        UDPUtil.sendMessage(dispatchMsg, target);
-                    } catch (IOException e) {
-                        Logger.log("[Scheduler]", "Error sending dispatch to drone " + droneID + ": " + e.getMessage());
-                    }
-                } else {
-                    Logger.log("[Scheduler]", "No registered address for drone " + droneID);
-                }
-                                // If this fire has a fault, requeue it once with cleared fault info
-                if (fireEvt.getFaultType() != null && !fireEvt.getFaultType().isEmpty() && foamNeeded > 0) {
-                    Message retryFire = new Message(
-                            fireEvt.getType(),
-                            0,
-                            fireEvt.getZoneID(),
-                            fireEvt.getSeverity(),
-                            fireEvt.getEventTime(),
-                            fireEvt.getEventTimeString(),
-                            fireEvt.getCenterX(),
-                            fireEvt.getCenterY(),
-                            foamNeeded,  // Add back full foam needed
-                            fireEvt.getEventID(),
-                            "", // Clear the fault type
-                            fireEvt.getFaultTime()
-                    );
-                    pendingFires.add(retryFire);
-                    Logger.log("[Scheduler]", "Requeued fire with cleared faultType: " + retryFire);
-                    break;
+                double timeToReachFromBase = Utility.computeTravelTime(
+                    0, 0, 
+                    fire.getCenterX(), fire.getCenterY()
+                );
+                double availableFoam = droneFoamMap.getOrDefault(droneId, 0.0);
+
+                // Divert drone if it's closer or has enough foam
+                if (timeToReachFromHere < timeToReachFromBase || availableFoam >= remainingFoam) {
+                    double foamToUse = Math.min(availableFoam, remainingFoam);
+                    sendDispatchMessage(droneId, fire, "DIVERT", foamToUse);
+                    remainingFoam -= foamToUse;
+                    
+                    if (remainingFoam <= 0) break;
                 }
             }
-            if (foamNeeded > 0 && fireEvt.getFaultType().isEmpty()) {
-                Message leftoverFire = new Message(
-                        fireEvt.getType(),
-                        fireEvt.getDroneID(),
-                        fireEvt.getZoneID(),
-                        fireEvt.getSeverity(),
-                        fireEvt.getEventTime(),
-                        fireEvt.getEventTimeString(),
-                        fireEvt.getCenterX(),
-                        fireEvt.getCenterY(),
-                        foamNeeded,
-                        fireEvt.getEventID(),
-                        fireEvt.getFaultType(),
-                        fireEvt.getFaultTime()
-                );
-                pendingFires.add(leftoverFire);
-                Logger.log("[Scheduler]", "Fire " + fireEvt.getZoneID() + " still needs " + foamNeeded + " foam, requeueing.");
+
+            // If fire still needs foam, use idle drones from base
+            if (remainingFoam > 0) {
+                for (Integer droneId : availableDrones) {
+                    if (!"IDLE".equals(droneStatus.get(droneId))) continue;
+
+                    double foamToUse = Math.min(DroneSubsystem.getFoamCapacity(), remainingFoam);
+                    sendDispatchMessage(droneId, fire, "DISPATCH_RECEIVED", foamToUse);
+                    remainingFoam -= foamToUse;
+                    
+                    if (remainingFoam <= 0) break;
+                }
             }
+
+            // If fire still not fully covered, requeue it
+            if (remainingFoam > 0) {
+                pendingFires.add(new Message(
+                    fire.getType(),
+                    fire.getDroneID(),
+                    fire.getZoneID(),
+                    fire.getSeverity(),
+                    fire.getEventTime(),
+                    fire.getEventTimeString(),
+                    fire.getCenterX(),
+                    fire.getCenterY(),
+                    remainingFoam,
+                    fire.getEventID(),
+                    "",
+                    0.0
+                ));
+                Logger.log("[Scheduler]", "Fire " + fire.getZoneID() + 
+                    " still needs " + remainingFoam + " foam, requeueing.");
+            }
+        }
+    }
+
+    // Convert fire severity to int
+    private int getSeverityValue(String severity) {
+        return switch (severity) {
+            case "HIGH" -> 3;
+            case "MODERATE" -> 2;
+            case "LOW" -> 1;
+            default -> 0;
+        };
+    }
+
+    // Send dispatch command to a drone
+    private void sendDispatchMessage(int droneId, Message fire, String dispatchType, double foamAmount) {
+        Message dispatch = new Message(
+            dispatchType,
+            droneId,
+            fire.getZoneID(),
+            fire.getSeverity(),
+            fire.getEventTime(),
+            fire.getEventTimeString(),
+            fire.getCenterX(),
+            fire.getCenterY(),
+            foamAmount,
+            fire.getEventID(),
+            "",
+            0.0
+        );
+        
+        Logger.log("[Scheduler]", dispatchType + " Drone " + droneId + " => " + fire);
+        droneStatus.put(droneId, "EN_ROUTE");
+        
+        InetSocketAddress target = droneAddressesMap.get(droneId);
+        if (target != null) {
+            try {
+                UDPUtil.sendMessage(dispatch, target);
+            } catch (IOException e) {
+                Logger.log("[Scheduler]", "Error sending dispatch to drone " + droneId + ": " + e.getMessage());
+            }
+        } else {
+            Logger.log("[Scheduler]", "No registered address for drone " + droneId);
         }
     }
 
