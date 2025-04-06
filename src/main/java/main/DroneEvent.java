@@ -8,6 +8,7 @@ public enum DroneEvent {
     DISPATCH_RECEIVED,  // When the drone receives a dispatch from the Scheduler
     ARRIVE_ZONE,        // Drone arrives at the fire zone
     START_DROPPING,     // Drone begins dropping foam
+    FOAM_FINISHED,      // Drone has finished applying its foam
     PARTIAL_COVERAGE,   // Drone did partial coverage
     FIRE_EXTINGUISHED,  // Fire fully extinguished
     RETURN_TO_BASE,     // Drone sets course back to base (0,0)

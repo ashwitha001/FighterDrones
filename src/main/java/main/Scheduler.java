@@ -19,6 +19,9 @@ public class Scheduler implements Runnable {
     // Queue for pending fire events.
     private final Queue<Message> pendingFires = new LinkedList<>();
     private final Set<String> extinguishedFires = new HashSet<>();
+    // Track total foam needed and applied for each fire
+    private final Map<Integer, Double> fireTotalFoamNeeded = new HashMap<>();
+    private final Map<Integer, Double> fireFoamApplied = new HashMap<>();
 
     // FireIncidentSubsystem is assumed to run at localhost:5001.
     private final InetSocketAddress fireIncidentAddress = new InetSocketAddress("localhost", 5001);
@@ -36,19 +39,45 @@ public class Scheduler implements Runnable {
     private void updateUI(Message m) {
         if (m == null) return;
 
+        int zoneId = m.getZoneID();
+
         switch (m.getType()) {
             case "ACTIVE_FIRE":
-                ui.updateFireStatus(m.getZoneID(), m.getSeverity());
+                // Initialize foam tracking
+                fireTotalFoamNeeded.put(zoneId, m.getRemainingFoamNeeded());
+                fireFoamApplied.put(zoneId, 0.0);
+                ui.updateFireStatus(zoneId, m.getSeverity());
                 break;
 
             case "FIRE_EXTINGUISHED":
-                ui.updateFireStatus(m.getZoneID(), "EXTINGUISHED");
+                ui.updateFireStatus(zoneId, "EXTINGUISHED");
                 break;
 
-            // === DRONE STATE UPDATES ===
+            case "FOAM_FINISHED":
+            case "PARTIAL_COVERAGE": {
+                // Ensure total foam and applied foam are tracked
+                double totalNeeded = fireTotalFoamNeeded.getOrDefault(zoneId, 0.0);
+                double applied = fireFoamApplied.getOrDefault(zoneId, 0.0);
 
-            case "DRONE_REGISTRATION":
+                // Recalculate severity
+                double remaining = Math.max(0, totalNeeded - applied);
 
+                String severity;
+                if (remaining == 0) {
+                    severity = "EXTINGUISHED";
+                } else if (remaining <= 10) {
+                    severity = "LOW";
+                } else if (remaining <= 20) {
+                    severity = "MODERATE";
+                } else {
+                    severity = "HIGH";
+                }
+
+                ui.updateFireStatus(zoneId, severity);
+                break;
+            }
+
+            // === Drone position/status ===
             case "DRONE_READY":
                 ui.updateDroneLocation(m.getDroneID(), m.getCenterX(), m.getCenterY(), "READY");
                 break;
@@ -70,42 +99,14 @@ public class Scheduler implements Runnable {
                 break;
 
             case "DRONE_COORD_UPDATE":
-                // Store latest location in map
                 Coordinates updated = new Coordinates(m.getCenterX(), m.getCenterY());
                 droneLocations.put(m.getDroneID(), updated);
-
-                // Update Simulation UI
-                if (ui != null) {
-                    ui.updateDroneLocation(m.getDroneID(), updated.getX1(), updated.getY1(), "EN_ROUTE");
-                }
-
-                Logger.log("[Scheduler]", "Updated position for drone " + m.getDroneID() + ": " + updated);
+                ui.updateDroneLocation(m.getDroneID(), updated.getX1(), updated.getY1(), "EN_ROUTE");
                 break;
         }
     }
 
 
-//    private void updateUI(Message m) {
-//        if (m == null) return;
-//
-//        switch (m.getType()) {
-//            case "ACTIVE_FIRE":
-//                ui.updateFireStatus(m.getZoneID(), m.getSeverity());
-//                break;
-//            case "FIRE_EXTINGUISHED":
-//                ui.updateFireStatus(m.getZoneID(), "EXTINGUISHED");
-//                break;
-//            // have not implemented drone ui yet...
-//            case "DRONE_REGISTERED":
-//            case "DRONE_READY":
-//            case "DISPATCH_RECEIVED":
-//            case "DIVERT":
-//            case "RETURNING":
-//            case "EXTINGUISHING":
-//            case "DRONE_COORD_UDPATING":
-//                break;
-//        }
-//    }
 
     @Override
     public void run() {
@@ -133,6 +134,9 @@ public class Scheduler implements Runnable {
         switch (type) {
             case "ACTIVE_FIRE":
                 pendingFires.add(m);
+                // Initialize foam tracking for new fire
+                fireTotalFoamNeeded.put(m.getZoneID(), m.getRemainingFoamNeeded());
+                fireFoamApplied.put(m.getZoneID(), 0.0);
                 break;
             case "DRONE_REGISTRATION":
                 int droneId = m.getDroneID();
@@ -273,18 +277,146 @@ public class Scheduler implements Runnable {
                         break;
                 }
 
-            case "FIRE_EXTINGUISHED":
-                Logger.log("[Scheduler]", "FIRE_EXTINGUISHED received: " + m);
-                try {
-                    UDPUtil.sendMessage(m, fireIncidentAddress);
-                    Logger.log("[Scheduler]", "Forwarded FIRE_EXTINGUISHED to FireIncidentSubsystem.");
-                } catch (IOException e) {
-                    Logger.log("[Scheduler]", "Error forwarding FIRE_EXTINGUISHED: " + e.getMessage());
+            case "FOAM_FINISHED":
+                Logger.log("[Scheduler]", "Drone " + m.getDroneID() + " finished foam drop on fire " + m.getZoneID());
+
+                // Determine total foam needed based on original fire severity
+                double totalFoam = fireTotalFoamNeeded.getOrDefault(m.getZoneID(), 0.0);
+                double droneDrop = DroneSubsystem.getFoamCapacity() - m.getRemainingFoamNeeded();
+
+                // Update foam applied
+                double appliedSoFar = fireFoamApplied.getOrDefault(m.getZoneID(), 0.0);
+                appliedSoFar += droneDrop;
+                fireFoamApplied.put(m.getZoneID(), appliedSoFar);
+
+                // Determine remaining foam
+                double remaining = totalFoam - appliedSoFar;
+                remaining = Math.max(0.0, remaining);  // ensure non-negative
+
+                String severity;
+                if (remaining == 0.0) {
+                    severity = "EXTINGUISHED";
+                    extinguishedFires.add(String.valueOf(m.getZoneID()));
+
+                    Message extinguishedMsg = new Message(
+                            "FIRE_EXTINGUISHED",
+                            m.getDroneID(),
+                            m.getZoneID(),
+                            severity,
+                            m.getEventTime(),
+                            m.getEventTimeString(),
+                            m.getCenterX(),
+                            m.getCenterY(),
+                            0.0,
+                            m.getEventID(),
+                            "",
+                            0.0
+                    );
+
+                    try {
+                        UDPUtil.sendMessage(extinguishedMsg, fireIncidentAddress);
+                        Logger.log("[Scheduler]", "Fire " + m.getZoneID() + " extinguished.");
+                    } catch (IOException e) {
+                        Logger.log("[Scheduler]", "Error notifying FIRE_EXTINGUISHED: " + e.getMessage());
+                    }
+
+                } else {
+                    // Partial coverage
+                    if (remaining <= 10.0) {
+                        severity = "LOW";
+                    } else if (remaining <= 20.0) {
+                        severity = "MODERATE";
+                    } else {
+                        severity = "HIGH";
+                    }
+
+                    // Requeue fire for further coverage
+                    Message requeue = new Message(
+                            "PARTIAL_COVERAGE",
+                            m.getDroneID(),
+                            m.getZoneID(),
+                            severity,
+                            m.getEventTime(),
+                            m.getEventTimeString(),
+                            m.getCenterX(),
+                            m.getCenterY(),
+                            remaining,
+                            m.getEventID(),
+                            "",
+                            0.0
+                    );
+                    pendingFires.add(requeue);
+                    Logger.log("[Scheduler]", "Requeued fire " + m.getZoneID() + " with " + remaining + "L foam left (" + severity + ")");
                 }
+
+                // UI update with new severity
+                ui.updateFireStatus(m.getZoneID(), severity);
+
+                // Mark drone as available for diversion
+                droneStatus.put(m.getDroneID(), "DIVERTIBLE");
+                droneLocations.put(m.getDroneID(), new Coordinates(m.getCenterX(), m.getCenterY()));
+                droneFoamMap.put(m.getDroneID(), m.getRemainingFoamNeeded());
+                Logger.log("[Scheduler]", "Drone " + m.getDroneID() + " is now DIVERTIBLE at (" + m.getCenterX() + ", " + m.getCenterY() + ") with foam: " + m.getRemainingFoamNeeded());
+
                 break;
+
             case "PARTIAL_COVERAGE":
-                if (m.getRemainingFoamNeeded() > 0) {
-                    pendingFires.add(m);
+                // Get the total foam needed for this fire based on initial severity
+                double totalFoamNeededPC;
+                switch (m.getSeverity()) {
+                    case "HIGH":
+                        totalFoamNeededPC = 30.0;
+                        break;
+                    case "MODERATE":
+                        totalFoamNeededPC = 20.0;
+                        break;
+                    case "LOW":
+                        totalFoamNeededPC = 10.0;
+                        break;
+                    default:
+                        totalFoamNeededPC = 0.0;
+                }
+                
+                // Get the foam applied so far
+                double foamAppliedSoFarPC = fireFoamApplied.getOrDefault(m.getZoneID(), 0.0);
+                
+                // Calculate remaining foam needed
+                double remainingFoamPC = totalFoamNeededPC - foamAppliedSoFarPC;
+                String severityPC;
+                
+                // Calculate severity based on remaining foam needed
+                if (remainingFoamPC <= 0) {
+                    severityPC = "EXTINGUISHED";
+                } else if (remainingFoamPC <= 10) {
+                    severityPC = "LOW";
+                } else if (remainingFoamPC <= 20) {
+                    severityPC = "MODERATE";
+                } else {
+                    severityPC = "HIGH";
+                }
+                
+                // Update the UI with the new severity
+                ui.updateFireStatus(m.getZoneID(), severityPC);
+                
+                // Requeue the fire if it still needs foam
+                if (remainingFoamPC > 0) {
+                    Message updatedFire = new Message(
+                        m.getType(),
+                        m.getDroneID(),
+                        m.getZoneID(),
+                        severityPC,
+                        m.getEventTime(),
+                        m.getEventTimeString(),
+                        m.getCenterX(),
+                        m.getCenterY(),
+                        remainingFoamPC,
+                        m.getEventID(),
+                        "",
+                        0.0
+                    );
+                    pendingFires.add(updatedFire);
+                    Logger.log("[Scheduler]", "Requeuing fire " + m.getZoneID() + 
+                        " with " + remainingFoamPC + " foam needed (severity: " + severityPC + ")");
                 }
                 break;
             case "INCIDENT_CONFIRMED":
@@ -314,7 +446,16 @@ public class Scheduler implements Runnable {
                 continue;
             }
 
-            double remainingFoam = fire.getRemainingFoamNeeded();
+            double totalNeeded = switch (fire.getSeverity()) {
+                case "HIGH" -> 30.0;
+                case "MODERATE" -> 20.0;
+                case "LOW" -> 10.0;
+                default -> 0.0;
+            };
+
+            double applied = fireFoamApplied.getOrDefault(fire.getZoneID(), 0.0);
+            double remainingFoam = totalNeeded - applied;
+            remainingFoam = Math.max(0.0, remainingFoam);
 
             // First try to use nearby drones that are returning with foam
             for (Integer droneId : availableDrones) {
@@ -357,11 +498,21 @@ public class Scheduler implements Runnable {
 
             // If fire still not fully covered, requeue it
             if (remainingFoam > 0) {
+                // Calculate new severity based on remaining foam
+                String newSeverity;
+                if (remainingFoam <= 10) {
+                    newSeverity = "LOW";
+                } else if (remainingFoam <= 20) {
+                    newSeverity = "MODERATE";
+                } else {
+                    newSeverity = "HIGH";
+                }
+
                 pendingFires.add(new Message(
                     fire.getType(),
                     fire.getDroneID(),
                     fire.getZoneID(),
-                    fire.getSeverity(),
+                    newSeverity,  // Use the new severity based on remaining foam
                     fire.getEventTime(),
                     fire.getEventTimeString(),
                     fire.getCenterX(),
@@ -372,28 +523,42 @@ public class Scheduler implements Runnable {
                     0.0
                 ));
                 Logger.log("[Scheduler]", "Fire " + fire.getZoneID() + 
-                    " still needs " + remainingFoam + " foam, requeueing.");
+                    " still needs " + remainingFoam + " foam (severity: " + newSeverity + "), requeueing.");
             }
         }
     }
 
     // Convert fire severity to int
     private int getSeverityValue(String severity) {
-        return switch (severity) {
-            case "HIGH" -> 3;
-            case "MODERATE" -> 2;
-            case "LOW" -> 1;
-            default -> 0;
-        };
+        double needed;
+        switch (severity) {
+            case "LOW":       needed = 10.0; break;
+            case "MODERATE":  needed = 20.0; break;
+            case "HIGH":      needed = 30.0; break;
+            default:          needed = 10.0;
+        }
+        return (int) Math.round(needed);
     }
 
     // Send dispatch command to a drone
     private void sendDispatchMessage(int droneId, Message fire, String dispatchType, double foamAmount) {
+        // Calculate severity based on remaining foam needed
+        String severity;
+        if (fire.getRemainingFoamNeeded() <= 0) {
+            severity = "EXTINGUISHED";
+        } else if (fire.getRemainingFoamNeeded() <= 10) {
+            severity = "LOW";
+        } else if (fire.getRemainingFoamNeeded() <= 20) {
+            severity = "MODERATE";
+        } else {
+            severity = "HIGH";
+        }
+
         Message dispatch = new Message(
             dispatchType,
             droneId,
             fire.getZoneID(),
-            fire.getSeverity(),
+            severity,
             fire.getEventTime(),
             fire.getEventTimeString(),
             fire.getCenterX(),

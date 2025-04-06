@@ -2,8 +2,13 @@ package main;
 
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.Map;
+import java.util.HashMap;
 
 public class DroppingAgentState implements DroneState {
+
+    private final Map<Integer, Double> fireTotalFoamNeeded = new HashMap<>();
+    private final Map<Integer, Double> fireFoamApplied = new HashMap<>();
 
     @Override
     public void handleEvent(DroneSubsystem subsystem, DroneEvent event, Message msg) throws InterruptedException {
@@ -25,8 +30,8 @@ public class DroppingAgentState implements DroneState {
 
     private void dropFoam(DroneSubsystem subsystem, Message msg) throws InterruptedException {
         int droneID = subsystem.getDroneID();
-        double needed = msg.getRemainingFoamNeeded();
-        double droneFoam = subsystem.getFoamRemaining();
+        double totalFoamNeeded = msg.getRemainingFoamNeeded();  // Total foam still needed for the fire
+        double droneFoam = subsystem.getFoamRemaining();        // How much foam this drone has
 
         // Send initial update.
         subsystem.sendToScheduler(new Message(
@@ -38,7 +43,7 @@ public class DroppingAgentState implements DroneState {
                 msg.getEventTimeString(),
                 msg.getCenterX(),
                 msg.getCenterY(),
-                needed,
+                totalFoamNeeded,
                 msg.getEventID(),
                 msg.getFaultType(),
                 msg.getFaultTime()
@@ -73,52 +78,56 @@ public class DroppingAgentState implements DroneState {
             }, (long)(faultTime * 1000));
         }
 
-        if (droneFoam >= needed) {
-            double dropTime = Utility.nozzleDropTime(needed);
-            Thread.sleep((long) (dropTime * 1000));
-            subsystem.setFoamRemaining(droneFoam - needed);
-            Logger.log("[DroppingAgentState-" + droneID + "]", "FIRE_EXTINGUISHED => used " + needed + ", leftover foam=" + subsystem.getFoamRemaining());
-            subsystem.sendToScheduler(new Message(
-                    "FIRE_EXTINGUISHED",
-                    droneID,
-                    msg.getZoneID(),
-                    msg.getSeverity(),
-                    msg.getEventTime(),
-                    msg.getEventTimeString(),
-                    msg.getCenterX(),
-                    msg.getCenterY(),
-                    0.0,
-                    msg.getEventID(),
-                    faultType,
-                    faultTime
-            ));
-        } else {
-            double partialDrop = droneFoam;
-            double leftover = needed - partialDrop;
-            double dropTime = Utility.nozzleDropTime(partialDrop);
-            Thread.sleep((long) (dropTime * 1000));
-            subsystem.setFoamRemaining(0.0);
-            Logger.log("[DroppingAgentState-" + droneID + "]", "PARTIAL_COVERAGE => leftover= " + leftover);
-            subsystem.sendToScheduler(new Message(
-                    "PARTIAL_COVERAGE",
-                    droneID,
-                    msg.getZoneID(),
-                    msg.getSeverity(),
-                    msg.getEventTime(),
-                    msg.getEventTimeString(),
-                    msg.getCenterX(),
-                    msg.getCenterY(),
-                    leftover,
-                    msg.getEventID(),
-                    faultType,
-                    faultTime
-            ));
-        }
+        // Calculate how much foam this drone can apply
+        double foamToApply = Math.min(droneFoam, totalFoamNeeded);  // Apply only what's needed
+        double dropTime = Utility.nozzleDropTime(foamToApply);
+        Thread.sleep((long) (dropTime * 1000));
+        
+        // Update drone's foam remaining
+        subsystem.setFoamRemaining(droneFoam - foamToApply);
+        
+        // Calculate remaining foam needed for the fire after this drone's contribution
+        double remainingFoamNeeded = totalFoamNeeded - foamToApply;
+        
+        // First send FOAM_FINISHED to indicate this drone has completed its foam application
+        Message foamFinishedMsg = new Message(
+                "FOAM_FINISHED",
+                droneID,
+                msg.getZoneID(),
+                msg.getSeverity(),
+                msg.getEventTime(),
+                msg.getEventTimeString(),
+                msg.getCenterX(),
+                msg.getCenterY(),
+                remainingFoamNeeded,
+                msg.getEventID(),
+                faultType,
+                faultTime
+        );
+        subsystem.sendToScheduler(foamFinishedMsg);
+
+        Message partialCoverageMsg = new Message(
+                "PARTIAL_COVERAGE",
+                droneID,
+                msg.getZoneID(),
+                msg.getSeverity(),  // send current severity; Scheduler will recalculate
+                msg.getEventTime(),
+                msg.getEventTimeString(),
+                msg.getCenterX(),
+                msg.getCenterY(),
+                remainingFoamNeeded,  // from this drone’s local view
+                msg.getEventID(),
+                faultType,
+                faultTime
+        );
+        subsystem.sendToScheduler(partialCoverageMsg);
+
         if (faultTimer != null) {
             faultTimer.cancel();
         }
         Logger.log("[DroppingAgentState-" + droneID + "]", "Dropping done => RETURN_TO_BASE event.");
         subsystem.setState("EN_ROUTE");
+        subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.FOAM_FINISHED, msg);
         subsystem.getCurrentState().handleEvent(subsystem, DroneEvent.RETURN_TO_BASE, msg);
     }
 }
