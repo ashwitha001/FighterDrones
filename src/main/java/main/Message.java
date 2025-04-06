@@ -16,8 +16,8 @@ public class Message implements Serializable {
     private final int droneID;
     private final int zoneID;
     private final String severity;
-    private final LocalTime eventTime;
-    private final String eventTimeString;
+    private LocalTime eventTime;
+    private String eventTimeString;
 
     private final int centerX;
     private final int centerY;
@@ -88,7 +88,9 @@ public class Message implements Serializable {
     public int getZoneID() { return zoneID; }
     public String getSeverity() { return severity; }
     public LocalTime getEventTime() { return eventTime; }
+    public void setEventTime(LocalTime time) { this.eventTime = time; }
     public String getEventTimeString() { return eventTimeString; }
+    public void setEventTimeString(String timeStr) { this.eventTimeString = timeStr; }
     public int getCenterX() { return centerX; }
     public int getCenterY() { return centerY; }
 

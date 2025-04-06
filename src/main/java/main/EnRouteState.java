@@ -1,5 +1,7 @@
 package main;
 
+import java.time.LocalTime;
+
 public class EnRouteState implements DroneState {
 
     @Override
@@ -97,8 +99,13 @@ public class EnRouteState implements DroneState {
         else {
             Utility.showProgress(tOut, label);
         }
-            subsystem.setCurrentLocation(tgt);
-            subsystem.setTotalFlightTime(subsystem.getTotalFlightTime() + tOut);
+        subsystem.setCurrentLocation(tgt);
+        subsystem.setTotalFlightTime(subsystem.getTotalFlightTime() + tOut);
+        
+        // Update the event time in the message
+        LocalTime updatedTime = msg.getEventTime().plusSeconds((long)tOut);
+        msg.setEventTime(updatedTime);
+        msg.setEventTimeString(updatedTime.toString());
     }
 
     private void travelBackToBase(DroneSubsystem subsystem, Message msg) throws InterruptedException {
@@ -125,6 +132,11 @@ public class EnRouteState implements DroneState {
             Logger.log("[EnRouteState-" + droneID + "]", "Refueling foam & battery at base.");
             subsystem.setTotalFlightTime(0.0);
             subsystem.setFoamRemaining(DroneSubsystem.getFoamCapacity());
+            
+            // Update the event time in the message
+            LocalTime updatedTime = msg.getEventTime().plusSeconds((long)tBack);
+            msg.setEventTime(updatedTime);
+            msg.setEventTimeString(updatedTime.toString());
         }
     }
 }
