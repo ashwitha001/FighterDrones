@@ -44,27 +44,28 @@ public class Utility {
         }
     }
 
-    public static void showProgress(double totalTime, String label) throws InterruptedException {
-        final int STEPS = 10;
-        if (totalTime <= 0.0) {
-            System.out.println("[####################] 100%  " + label);
-            return;
+    public static Coordinates computeCoorGivenTime(int x1, int y1, int x2, int y2, double t) {
+        int dx = x2 - x1;
+        int dy = y2 - y1;
+        double d; // distance
+
+        double maxDistance = Math.sqrt(dx * dx + dy * dy);
+        if (t <= ACC_DEC_TIME) {
+            d = Math.min(maxDistance, 0.5*ACCEL*t*t); // distance while accelerating, capped at distance to endpoint
+        } else {
+            d = Math.min(maxDistance, 0.5*ACCEL*ACC_DEC_TIME*ACC_DEC_TIME + MAX_SPEED_MS*(t-ACC_DEC_TIME)); //distance while accelerating + distance at max speed, capped at distance to end point
         }
-        double stepDur = totalTime / STEPS;
-        for (int i = 0; i <= STEPS; i++) {
-            double frac = i / (double) STEPS;
-            int pct = (int)(frac * 100);
-            String bar = buildBar(frac);
-            System.out.printf("%s %d%%  %s%n", bar, pct, label);
-            if (i < STEPS) {
-                Thread.sleep((long)(stepDur * 250));
-            }
-        }
+
+        double m = (double) dy/dx; // slope
+        double k = d/(Math.sqrt(1+m*m));
+        int x = (int) Math.round(x1 + (dx >= 0 ? k : -k));
+        int y = (int) Math.round(y1 + (dy >= 0 ? k * m : -k * m));
+        return new Coordinates(x, y);
     }
 
-    public static void showProgress(double totalTime, String label, DroneSubsystem subsystem) throws InterruptedException {
-        final int STEPS = 10;
-        double stepDur = totalTime / STEPS;
+    public static void showProgress(double totalTime, String label, DroneSubsystem subsystem, int x1, int y1, int x2, int y2) throws InterruptedException {
+        final int STEPS = (int) Math.floor(totalTime);
+        double stepDur = 1000;
         for (int i = 0; i <= STEPS; i++) {
             double frac = i / (double) STEPS;
             int pct = (int)(frac * 100);
@@ -73,13 +74,15 @@ public class Utility {
                 System.out.println("Drone stopped since there is fault.");
                 return;
             }
-            System.out.printf("%s %d%%  %s%n", bar, pct, label);
+            Coordinates c = computeCoorGivenTime(x1, y1, x2, y2, i);
+            System.out.printf("%s %d%%  %s,   Current Coordinate: (%d, %d)%n", bar, pct, label, c.getX1(), c.getY1());
+            subsystem.setCurrentLocation(c);
             if (i < STEPS) {
-                Thread.sleep((long)(stepDur * 250));
+                Thread.sleep((long)(stepDur));
             }
         }
     }
-    
+
     private static String buildBar(double fraction) {
         final int WIDTH = 20;
         int fill = (int)Math.round(WIDTH * fraction);
