@@ -80,6 +80,7 @@ public class Scheduler implements Runnable {
         String type = m.getType();
         switch (type) {
             case "ACTIVE_FIRE":
+                PerformanceLogger.recordEventStart(m.getEventID());
                 pendingFires.add(m);
                 break;
             case "DRONE_REGISTRATION":
@@ -212,6 +213,7 @@ public class Scheduler implements Runnable {
                 }
 
             case "FIRE_EXTINGUISHED":
+                PerformanceLogger.recordEventCompletion(m.getEventID());
                 Logger.log("[Scheduler]", "FIRE_EXTINGUISHED received: " + m);
                 try {
                     UDPUtil.sendMessage(m, fireIncidentAddress);
@@ -273,6 +275,7 @@ public class Scheduler implements Runnable {
                 // Divert drone if it's closer or has enough foam
                 if (timeToReachFromHere < timeToReachFromBase || availableFoam >= remainingFoam) {
                     double foamToUse = Math.min(availableFoam, remainingFoam);
+                    PerformanceLogger.recordDispatchTime(fire.getEventID());
                     sendDispatchMessage(droneId, fire, "DIVERT", foamToUse);
                     remainingFoam -= foamToUse;
                     
@@ -286,6 +289,7 @@ public class Scheduler implements Runnable {
                     if (!"IDLE".equals(droneStatus.get(droneId))) continue;
 
                     double foamToUse = Math.min(DroneSubsystem.getFoamCapacity(), remainingFoam);
+                    PerformanceLogger.recordDispatchTime(fire.getEventID());
                     sendDispatchMessage(droneId, fire, "DISPATCH_RECEIVED", foamToUse);
                     remainingFoam -= foamToUse;
                     
