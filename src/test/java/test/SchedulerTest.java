@@ -32,7 +32,7 @@ public class SchedulerTest {
       //  schedulerThread = new Thread(new Scheduler(incidentQueue, dronesQueue, droneCompletionQueue, incidentCompletionQueue), "main.Scheduler");
 
         InetSocketAddress schedulerAddress = new InetSocketAddress("localhost", 2);
-        schedulerThread = new Thread(new Scheduler(schedulerAddress));
+      //  schedulerThread = new Thread(new Scheduler(schedulerAddress));
     }
 
     /**

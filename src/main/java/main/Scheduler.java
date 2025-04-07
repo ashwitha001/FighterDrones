@@ -360,31 +360,17 @@ public class Scheduler implements Runnable {
 
                 break;
 
-            case "PARTIAL_COVERAGE":
-                // Get the total foam needed for this fire based on initial severity
-                double totalFoamNeededPC;
-                switch (m.getSeverity()) {
-                    case "HIGH":
-                        totalFoamNeededPC = 30.0;
-                        break;
-                    case "MODERATE":
-                        totalFoamNeededPC = 20.0;
-                        break;
-                    case "LOW":
-                        totalFoamNeededPC = 10.0;
-                        break;
-                    default:
-                        totalFoamNeededPC = 0.0;
-                }
-                
-                // Get the foam applied so far
+            case "PARTIAL_COVERAGE": {
+                // Use the originally recorded foam requirement
+                double totalFoamNeededPC = fireTotalFoamNeeded.getOrDefault(m.getZoneID(), 0.0);
                 double foamAppliedSoFarPC = fireFoamApplied.getOrDefault(m.getZoneID(), 0.0);
-                
-                // Calculate remaining foam needed
+
+                // Subtract applied foam to get remaining
                 double remainingFoamPC = totalFoamNeededPC - foamAppliedSoFarPC;
+                remainingFoamPC = Math.max(0.0, remainingFoamPC);
+
+                // Determine severity to display in UI
                 String severityPC;
-                
-                // Calculate severity based on remaining foam needed
                 if (remainingFoamPC <= 0) {
                     severityPC = "EXTINGUISHED";
                 } else if (remainingFoamPC <= 10) {
@@ -394,31 +380,33 @@ public class Scheduler implements Runnable {
                 } else {
                     severityPC = "HIGH";
                 }
-                
-                // Update the UI with the new severity
+
+                // Update UI display
                 ui.updateFireStatus(m.getZoneID(), severityPC);
-                
-                // Requeue the fire if it still needs foam
+
+                // If fire still needs coverage, requeue
                 if (remainingFoamPC > 0) {
                     Message updatedFire = new Message(
-                        m.getType(),
-                        m.getDroneID(),
-                        m.getZoneID(),
-                        severityPC,
-                        m.getEventTime(),
-                        m.getEventTimeString(),
-                        m.getCenterX(),
-                        m.getCenterY(),
-                        remainingFoamPC,
-                        m.getEventID(),
-                        "",
-                        0.0
+                            m.getType(),
+                            m.getDroneID(),
+                            m.getZoneID(),
+                            severityPC,
+                            m.getEventTime(),
+                            m.getEventTimeString(),
+                            m.getCenterX(),
+                            m.getCenterY(),
+                            remainingFoamPC,
+                            m.getEventID(),
+                            "",
+                            0.0
                     );
                     pendingFires.add(updatedFire);
-                    Logger.log("[Scheduler]", "Requeuing fire " + m.getZoneID() + 
-                        " with " + remainingFoamPC + " foam needed (severity: " + severityPC + ")");
+                    Logger.log("[Scheduler]", "Requeuing fire " + m.getZoneID() +
+                            " with " + remainingFoamPC + " foam needed (severity: " + severityPC + ")");
                 }
                 break;
+            }
+
             case "INCIDENT_CONFIRMED":
                 Logger.log("[Scheduler]", "Received INCIDENT_CONFIRMED: " + m);
                 break;
@@ -446,12 +434,8 @@ public class Scheduler implements Runnable {
                 continue;
             }
 
-            double totalNeeded = switch (fire.getSeverity()) {
-                case "HIGH" -> 30.0;
-                case "MODERATE" -> 20.0;
-                case "LOW" -> 10.0;
-                default -> 0.0;
-            };
+            double totalNeeded = fireTotalFoamNeeded.getOrDefault(fire.getZoneID(), 0.0);
+
 
             double applied = fireFoamApplied.getOrDefault(fire.getZoneID(), 0.0);
             double remainingFoam = totalNeeded - applied;
