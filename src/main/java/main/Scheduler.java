@@ -99,9 +99,12 @@ public class Scheduler implements Runnable {
                 break;
 
             case "DRONE_COORD_UPDATE":
-                Coordinates updated = new Coordinates(m.getCenterX(), m.getCenterY());
-                droneLocations.put(m.getDroneID(), updated);
-                ui.updateDroneLocation(m.getDroneID(), updated.getX1(), updated.getY1(), "EN_ROUTE");
+                // Only update coordinates if the drone is not in a fault state
+                if (!"OFFLINE".equals(droneStatus.get(m.getDroneID()))) {
+                    Coordinates updated = new Coordinates(m.getCenterX(), m.getCenterY());
+                    droneLocations.put(m.getDroneID(), updated);
+                    ui.updateDroneLocation(m.getDroneID(), updated.getX1(), updated.getY1(), "EN_ROUTE");
+                }
                 break;
         }
     }
@@ -212,14 +215,27 @@ public class Scheduler implements Runnable {
                 
                 if (remainingFoam > 0) {
                     Logger.log("[Scheduler]", "Fire " + m.getZoneID() + " still needs " + remainingFoam + " foam. Requeuing for another drone.");
+                    // Get the original fire coordinates from the pending fires queue
+                    Message originalFire = null;
+                    for (Message fire : pendingFires) {
+                        if (fire.getZoneID() == m.getZoneID()) {
+                            originalFire = fire;
+                            break;
+                        }
+                    }
+                    
+                    // If we found the original fire message, use its coordinates
+                    int fireX = originalFire != null ? originalFire.getCenterX() : m.getCenterX();
+                    int fireY = originalFire != null ? originalFire.getCenterY() : m.getCenterY();
+                    
                     Message requeueFire = new Message(
                         "ACTIVE_FIRE",
                         m.getZoneID(),
                         m.getSeverity(),
                         m.getEventTime(),
                         m.getEventTimeString(),
-                        m.getCenterX(),
-                        m.getCenterY(),
+                        fireX,
+                        fireY,
                         remainingFoam,
                         m.getEventID(),
                         "",
