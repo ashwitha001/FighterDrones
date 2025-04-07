@@ -74,9 +74,7 @@ public class SimulationUI extends JFrame {
         addLegendItem(fireSection, Color.GREEN, "Extinguished");
 
         // Add drone items
-        addLegendItem(droneSection, Color.BLUE, "Outbound");
-        addLegendItem(droneSection, new Color(128, 0, 128), "Returning"); //Purple
-        addLegendItem(droneSection, new Color(30, 110, 50), "Working"); //Dark Green
+        addLegendItem(droneSection, Color.GRAY, "Drone");
         addLegendItem(droneSection, Color.RED, "Fault");
 
         // Add sections to legend

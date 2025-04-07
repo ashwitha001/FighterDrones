@@ -179,9 +179,33 @@ public class Scheduler implements Runnable {
                 Logger.log("[Scheduler]", "Fault reported by drone " + dID + ": " + m.getFaultType());
                 droneStatus.put(dID, "OFFLINE");
                 Logger.log("[Scheduler]", "Drone " + dID + " marked as OFFLINE.");
+
+                // Check if there's still foam needed for this fire and requeue if necessary
+                double totalFoamNeeded = fireTotalFoamNeeded.getOrDefault(m.getZoneID(), 0.0);
+                double foamApplied = fireFoamApplied.getOrDefault(m.getZoneID(), 0.0);
+                double remainingFoam = totalFoamNeeded - foamApplied;
+                
+                if (remainingFoam > 0) {
+                    Logger.log("[Scheduler]", "Fire " + m.getZoneID() + " still needs " + remainingFoam + " foam. Requeuing for another drone.");
+                    Message requeueFire = new Message(
+                        "ACTIVE_FIRE",
+                        m.getZoneID(),
+                        m.getSeverity(),
+                        m.getEventTime(),
+                        m.getEventTimeString(),
+                        m.getCenterX(),
+                        m.getCenterY(),
+                        remainingFoam,
+                        m.getEventID(),
+                        "",
+                        0.0
+                    );
+                    pendingFires.add(requeueFire);
+                }
+
                 switch (m.getFaultType()) {
                     case "NOZZLE_JAM":
-                        Logger.log ("[Scheduler]", "Drone " + dID + " has a nozzle jam. Requesting return to base for repairs.");
+                        Logger.log("[Scheduler]", "Drone " + dID + " has a nozzle jam. Requesting return to base for repairs.");
                         Message returnMsg = new Message(
                                 "RETURN_TO_BASE",
                                 dID,
@@ -207,7 +231,6 @@ public class Scheduler implements Runnable {
                         break;
                     case "STUCK_EN_ROUTE":
                         Logger.log("[Scheduler]", "Drone " + dID + " is stuck en route. Shutting down for manual intervention.");
-                        // Send a shutdown command to the faulty drone.
                         Message shutdownMsg = new Message(
                                 "SHUTDOWN",
                                 dID,
@@ -226,23 +249,6 @@ public class Scheduler implements Runnable {
                             try {
                                 UDPUtil.sendMessage(shutdownMsg, target);
                                 Logger.log("[Scheduler]", "Sent SHUTDOWN command to drone " + dID);
-                                Message fire = new Message(
-                                        "ACTIVE_FIRE",
-                                        m.getZoneID(),
-                                        m.getSeverity(),
-                                        m.getEventTime(),
-                                        m.getEventTimeString(),
-                                        m.getCenterX(),
-                                        m.getCenterY(),
-                                        m.getRemainingFoamNeeded(),
-                                        m.getEventID(),
-                                        "",
-                                        0
-                                );
-                                if (!(m.getRemainingFoamNeeded() == 0)) {
-                                    Logger.log("[Scheduler]", "Requeue fire, drone shutdown");
-                                    pendingFires.add(fire);
-                                }
                             } catch (IOException e) {
                                 Logger.log("[Scheduler]", "Error sending SHUTDOWN to drone " + dID + ": " + e.getMessage());
                             }
@@ -277,6 +283,7 @@ public class Scheduler implements Runnable {
                         Logger.log("[Scheduler]", "Unknown fault type for drone " + dID + ": " + m.getFaultType());
                         break;
                 }
+                break;
 
             case "FOAM_FINISHED":
                 Logger.log("[Scheduler]", "Drone " + m.getDroneID() + " finished foam drop on fire " + m.getZoneID());
