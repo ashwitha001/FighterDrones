@@ -65,7 +65,7 @@ public class Utility {
 
     public static void showProgress(double totalTime, String label, DroneSubsystem subsystem, int x1, int y1, int x2, int y2) throws InterruptedException {
         final int STEPS = (int) Math.floor(totalTime);
-        double stepDur = 100;
+        double stepDur = 1000;
 
         for (int i = 0; i <= STEPS; i++) {
             double frac = i / (double) STEPS;
