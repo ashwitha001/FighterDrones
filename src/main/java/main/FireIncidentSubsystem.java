@@ -62,6 +62,7 @@ public class FireIncidentSubsystem implements Runnable {
 
         for (Message e : allEvents) {
             try {
+                PerformanceLogger.recordEventStart(e.getEventID());
                 Logger.log("[FireIncidentSubsystem]", "Sent event: " + e);
                 UDPUtil.sendMessage(e, schedulerAddress);
                 Thread.sleep(500);
