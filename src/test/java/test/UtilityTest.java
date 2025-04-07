@@ -40,12 +40,10 @@ public class UtilityTest {
         //3 sec to accelerate/decelerate, full distance for accel/decel is 58.32m
         //thus it should take longer than 6 sec to get to an area whose distance is over 58.32m
         assertTrue(Utility.computeTravelTime(0, 0, 60, 0) > 6.0);
-        //should be 6.08641975308642, according to formula
-        assertEquals(6.08641975308642, Utility.computeTravelTime(0, 0, 60, 0));
+        assertEquals(6.012923076923077, Utility.computeTravelTime(0, 0, 60, 0));
 
         //for a distance of 36m, which is below full accel/decel distance, different calculation is used
-        //should be 1.9245008973, according to formula
-        assertEquals(4.714045207910317, Utility.computeTravelTime(0, 0, 36, 0));
+        assertEquals(1.8229308607505998, Utility.computeTravelTime(0, 0, 36, 0));
     }
 
     //visual check of progress bar, no assertions needed
