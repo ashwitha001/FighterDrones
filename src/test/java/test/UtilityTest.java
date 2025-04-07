@@ -1,11 +1,13 @@
 package test;
 
+import main.DroneSubsystem;
 import main.Utility;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.IOException;
 import java.io.File;
 import java.io.FileWriter;
+import java.net.InetSocketAddress;
 
 
 public class UtilityTest {
@@ -50,7 +52,9 @@ public class UtilityTest {
     @Test
     public void progressBarTest() throws InterruptedException {
         //visual test
-        Utility.showProgress(1.0, "test of progress bar");
+        final InetSocketAddress address = new InetSocketAddress("localhost", 5001);
+        DroneSubsystem droneSubsystem = new DroneSubsystem(0, address);
+        Utility.showProgress(1.0, "test of progress bar", droneSubsystem, 1, 1, 1, 1);
     }
 
     //test of calculations for nozzleDropTime
