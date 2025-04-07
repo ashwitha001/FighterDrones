@@ -50,6 +50,7 @@ public class Scheduler implements Runnable {
                 break;
 
             case "FIRE_EXTINGUISHED":
+
                 ui.updateFireStatus(zoneId, "EXTINGUISHED");
                 break;
 
@@ -133,6 +134,7 @@ public class Scheduler implements Runnable {
         String type = m.getType();
         switch (type) {
             case "ACTIVE_FIRE":
+                PerformanceLogger.recordEventStart(m.getEventID());
                 pendingFires.add(m);
                 // Initialize foam tracking for new fire
                 fireTotalFoamNeeded.put(m.getZoneID(), m.getRemainingFoamNeeded());
@@ -276,6 +278,17 @@ public class Scheduler implements Runnable {
                         Logger.log("[Scheduler]", "Unknown fault type for drone " + dID + ": " + m.getFaultType());
                         break;
                 }
+
+            case "FIRE_EXTINGUISHED":
+                PerformanceLogger.recordEventCompletion(m.getEventID());
+                Logger.log("[Scheduler]", "FIRE_EXTINGUISHED received: " + m);
+                try {
+                    UDPUtil.sendMessage(m, fireIncidentAddress);
+                    Logger.log("[Scheduler]", "Forwarded FIRE_EXTINGUISHED to FireIncidentSubsystem.");
+                } catch (IOException e) {
+                    Logger.log("[Scheduler]", "Error forwarding FIRE_EXTINGUISHED: " + e.getMessage());
+                }
+                break;
 
             case "FOAM_FINISHED":
                 Logger.log("[Scheduler]", "Drone " + m.getDroneID() + " finished foam drop on fire " + m.getZoneID());
@@ -476,6 +489,7 @@ public class Scheduler implements Runnable {
                 // Divert drone if it's closer or has enough foam
                 if (timeToReachFromHere < timeToReachFromBase || availableFoam >= remainingFoam) {
                     double foamToUse = Math.min(availableFoam, remainingFoam);
+                    PerformanceLogger.recordDispatchTime(fire.getEventID());
                     sendDispatchMessage(droneId, fire, "DIVERT", foamToUse);
                     remainingFoam -= foamToUse;
                     
@@ -489,6 +503,7 @@ public class Scheduler implements Runnable {
                     if (!"IDLE".equals(droneStatus.get(droneId))) continue;
 
                     double foamToUse = Math.min(DroneSubsystem.getFoamCapacity(), remainingFoam);
+                    PerformanceLogger.recordDispatchTime(fire.getEventID());
                     sendDispatchMessage(droneId, fire, "DISPATCH_RECEIVED", foamToUse);
                     remainingFoam -= foamToUse;
                     

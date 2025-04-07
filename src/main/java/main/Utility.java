@@ -12,7 +12,7 @@ import java.io.IOException;
  * 4) nozzleDropTime => partial coverage flow
  */
 public class Utility {
-    public static final double MAX_SPEED_MS = 19.44; // e.g. 70 km/h
+    public static final double MAX_SPEED_MS = 130; // e.g. 70 km/h
     public static final double ACC_DEC_TIME = 3.0;
     public static final double ACCEL = MAX_SPEED_MS / ACC_DEC_TIME;
     public static final double FULL_ACCEL_DECEL_DIST = 58.32;
