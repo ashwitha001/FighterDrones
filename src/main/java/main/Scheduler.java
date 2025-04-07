@@ -133,6 +133,7 @@ public class Scheduler implements Runnable {
         String type = m.getType();
         switch (type) {
             case "ACTIVE_FIRE":
+                PerformanceLogger.recordEventStart(m.getEventID());
                 pendingFires.add(m);
                 // Initialize foam tracking for new fire
                 fireTotalFoamNeeded.put(m.getZoneID(), m.getRemainingFoamNeeded());
@@ -296,6 +297,7 @@ public class Scheduler implements Runnable {
                 String severity;
                 if (remaining == 0.0) {
                     severity = "EXTINGUISHED";
+                    PerformanceLogger.recordEventCompletion(m.getEventID());
                     extinguishedFires.add(String.valueOf(m.getZoneID()));
 
                     Message extinguishedMsg = new Message(
@@ -459,6 +461,7 @@ public class Scheduler implements Runnable {
 
                 // Divert drone if it's closer or has enough foam
                 if (timeToReachFromHere < timeToReachFromBase || availableFoam >= remainingFoam) {
+                    PerformanceLogger.recordDispatchTime(fire.getEventID());
                     double foamToUse = Math.min(availableFoam, remainingFoam);
                     sendDispatchMessage(droneId, fire, "DIVERT", foamToUse);
                     remainingFoam -= foamToUse;
@@ -469,6 +472,7 @@ public class Scheduler implements Runnable {
 
             // If fire still needs foam, use idle drones from base
             if (remainingFoam > 0) {
+                PerformanceLogger.recordDispatchTime(fire.getEventID());
                 for (Integer droneId : availableDrones) {
                     if (!"IDLE".equals(droneStatus.get(droneId))) continue;
 
