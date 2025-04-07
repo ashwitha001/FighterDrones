@@ -126,14 +126,43 @@ public class DroneSubsystem implements Runnable {
                             m.getSeverity(),
                             m.getEventTime(),
                             m.getEventTimeString(),
-                            m.getCenterX(),
-                            m.getCenterY(),
+                            currentLocation.getX1(),  // Use current location
+                            currentLocation.getY1(),  // Use current location
                             getFoamRemaining(),
                             m.getEventID(),
                             m.getFaultType(),
                             m.getFaultTime()
                     );
                     timeoutTriggered = true;
+                    
+                    // Handle the fault based on type
+                    switch (m.getFaultType()) {
+                        case "NOZZLE_JAM":
+                            // For NOZZLE_JAM, we'll wait for RETURN_TO_BASE command from Scheduler
+                            Logger.log("[DroneSubsystem-" + droneID + "]", "Nozzle jam detected. Waiting for return command.");
+                            break;
+                        case "STUCK_EN_ROUTE":
+                            // For STUCK_EN_ROUTE, we stay where we are and stop all movement
+                            Logger.log("[DroneSubsystem-" + droneID + "]", "Stuck en route. Remaining in current position.");
+                            setState("FAULT");
+                            // Send a final location update to show where we're stuck
+                            sendToScheduler(new Message(
+                                    "DRONE_COORD_UPDATE",
+                                    droneID,
+                                    0,
+                                    "STUCK",
+                                    m.getEventTime(),
+                                    m.getEventTimeString(),
+                                    currentLocation.getX1(),
+                                    currentLocation.getY1(),
+                                    0.0,
+                                    m.getEventID(),
+                                    "",
+                                    0.0
+                            ));
+                            break;
+                    }
+                    
                     sendToScheduler(faultMsg);
                 }
             }, (long)(m.getFaultTime() * 1000));

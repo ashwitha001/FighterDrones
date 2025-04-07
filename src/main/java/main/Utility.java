@@ -19,6 +19,12 @@ public class Utility {
 
     public static final double FLOW_RATE_LPS = 9.0;
     public static final double NOZZLE_OPEN_TIME = 0.01;
+    public static final double TIME_SCALE_FACTOR = 60.0; // 1 real minute = 1 simulation hour
+
+    // Convert real time to simulation time
+    public static double convertToSimulationTime(double realTimeSeconds) {
+        return realTimeSeconds / TIME_SCALE_FACTOR;
+    }
 
     // For this design, the Scheduler does not read the number of events.
     public static int countEventLines(String eventsFile) {

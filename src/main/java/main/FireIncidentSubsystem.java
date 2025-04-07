@@ -18,6 +18,7 @@ public class FireIncidentSubsystem implements Runnable {
     private final InetSocketAddress schedulerAddress;
     private final DatagramSocket socket; // to receive confirmations
     private final Map<Integer, Coordinates> zoneMap = new HashMap<>();
+    private final Map<String, Message> activeFires = new HashMap<>(); // Track active fires by eventID
 
     public FireIncidentSubsystem(InetSocketAddress schedulerAddress, int localPort) {
         this.schedulerAddress = schedulerAddress;
@@ -37,6 +38,9 @@ public class FireIncidentSubsystem implements Runnable {
         Thread receiverThread = new Thread(new UDPReceiver(socket, m -> {
             if ("FIRE_EXTINGUISHED".equals(m.getType())) {
                 Logger.log("[FireIncidentSubsystem]", "Completion confirmed: " + m);
+                // Remove the extinguished fire from active fires
+                activeFires.remove(m.getEventID());
+                
                 Message confirm = new Message(
                         "INCIDENT_CONFIRMED",
                         m.getDroneID(),
@@ -60,11 +64,35 @@ public class FireIncidentSubsystem implements Runnable {
         }), "FireIncidentReceiver");
         receiverThread.start();
 
+        // Sort events by time
+        allEvents.sort(Comparator.comparing(Message::getEventTime));
+
+        // Get the start time of the first event
+        LocalTime startTime = allEvents.get(0).getEventTime();
+        LocalTime currentTime = startTime;
+
         for (Message e : allEvents) {
             try {
-                Logger.log("[FireIncidentSubsystem]", "Sent event: " + e);
-                UDPUtil.sendMessage(e, schedulerAddress);
-                Thread.sleep(500);
+                // Calculate the delay until the next event
+                long delayMillis = (long)(Utility.convertToSimulationTime(
+                    java.time.Duration.between(currentTime, e.getEventTime()).getSeconds()
+                ) * 1000);
+
+                if (delayMillis > 0) {
+                    Thread.sleep(delayMillis);
+                }
+
+                // Only send the event if the fire is still active (not extinguished)
+                if (!activeFires.containsKey(e.getEventID())) {
+                    Logger.log("[FireIncidentSubsystem]", "Sent event: " + e);
+                    UDPUtil.sendMessage(e, schedulerAddress);
+                    // Add to active fires map
+                    activeFires.put(e.getEventID(), e);
+                } else {
+                    Logger.log("[FireIncidentSubsystem]", "Skipping event - fire already extinguished: " + e);
+                }
+                
+                currentTime = e.getEventTime();
             } catch (InterruptedException | IOException ex) {
                 Logger.log("[FireIncidentSubsystem]", "Interrupted or error => shutting down.");
                 Thread.currentThread().interrupt();
