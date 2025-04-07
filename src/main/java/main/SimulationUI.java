@@ -13,7 +13,7 @@ public class SimulationUI extends JFrame {
     private static final int WINDOW_WIDTH = 800;
     private static final int WINDOW_HEIGHT = 600;
     private static final int LEGEND_WIDTH = 120; // Reduced width
-    private static final int SCALE = 2; // Scale factor to convert coordinates
+    private static final int SCALE = 3; // Scale factor to convert coordinates
     private static final int GRID_SIZE = 100; // Base grid size before scaling
 
     // Maps to store simulation state
