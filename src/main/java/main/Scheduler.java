@@ -549,8 +549,8 @@ public class Scheduler implements Runnable {
             fire.getCenterY(),
             foamAmount,
             fire.getEventID(),
-            "",
-            0.0
+            fire.getFaultType(),
+            fire.getFaultTime()
         );
         
         Logger.log("[Scheduler]", dispatchType + " Drone " + droneId + " => " + fire);
