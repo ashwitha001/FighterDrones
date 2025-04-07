@@ -35,7 +35,7 @@ public class DroneSubsystem implements Runnable {
     private volatile boolean timeoutTriggered = false;
 
     private volatile boolean isShutDown = false;
-    private volatile Message lastKnownMessage = null;  // 🆕 store the last message
+    private volatile Message lastKnownMessage = null;  //store the last message
     
     public DroneSubsystem(int droneID, InetSocketAddress schedulerAddress) {
         this.droneID = droneID;
@@ -194,7 +194,7 @@ public class DroneSubsystem implements Runnable {
         Logger.log("[DroneSubsystem-" + droneID + "]", "resetting connection...");
         Thread.sleep(10000);
         Logger.log("[DroneSubsystem-" + droneID + "]", "resuming operations.");
-        setTimeoutTriggered(false); // ✅ clear fault flag after reset
+        setTimeoutTriggered(false); // clear fault flag after reset
     }
 
     public void setState(String stateName) {
