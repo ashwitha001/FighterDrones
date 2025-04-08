@@ -5,7 +5,9 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -36,6 +38,8 @@ public class DroneSubsystem implements Runnable {
 
     private volatile boolean isShutDown = false;
     private volatile Message lastKnownMessage = null;  //store the last message
+    private final Set<String> firesWithFaults = new HashSet<>();  // Track which fires have had faults triggered
+    private final Set<String> attemptedFires = new HashSet<>();  // Track which fires this drone has already attempted to handle
     
     public DroneSubsystem(int droneID, InetSocketAddress schedulerAddress) {
         this.droneID = droneID;
@@ -74,15 +78,47 @@ public class DroneSubsystem implements Runnable {
                 }
 
                 // If the message is a dispatch (or divert) with fault data, start the fault timer.
+                // Only trigger faults for fires that haven't had faults triggered yet
                 if ((event == DroneEvent.DISPATCH_RECEIVED || event == DroneEvent.DIVERT)
                         && m.getFaultType() != null && !m.getFaultType().isEmpty()
                         && m.getFaultTime() > 0) {
-                    if (!timeoutTriggered) {
-                        startFaultTimer(m);
+                    String fireKey = m.getEventID();  // Use eventID as unique identifier for the fire
+                    if (!firesWithFaults.contains(fireKey)) {
+                        firesWithFaults.add(fireKey);
+                        if (!timeoutTriggered) {
+                            startFaultTimer(m);
+                        }
+                    } else {
+                        // For subsequent dispatches to the same fire, clear fault data
+                        m = new Message(
+                            m.getType(),
+                            m.getDroneID(),
+                            m.getZoneID(),
+                            m.getSeverity(),
+                            m.getEventTime(),
+                            m.getEventTimeString(),
+                            m.getCenterX(),
+                            m.getCenterY(),
+                            m.getRemainingFoamNeeded(),
+                            m.getEventID(),
+                            "",  // Clear fault type
+                            0.0  // Clear fault time
+                        );
                     }
-
                 }
-//                currentState.handleEvent(this, DroneEvent.DISPATCH_RECEIVED, m);
+
+                // Check if this drone has already attempted to handle this fire
+                if ((event == DroneEvent.DISPATCH_RECEIVED || event == DroneEvent.DIVERT) 
+                    && attemptedFires.contains(m.getEventID())) {
+                    Logger.log("[DroneSubsystem-" + droneID + "]", "Ignoring dispatch to fire " + m.getEventID() + " - already attempted to handle this fire.");
+                    return;
+                }
+
+                // Add the fire to attempted fires when first dispatched
+                if (event == DroneEvent.DISPATCH_RECEIVED || event == DroneEvent.DIVERT) {
+                    attemptedFires.add(m.getEventID());
+                }
+
                 currentState.handleEvent(this, event, m);
             } catch (InterruptedException ex) {
                 Logger.log("[DroneSubsystem-" + droneID + "]", "Interrupted in message handling.");

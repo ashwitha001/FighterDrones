@@ -20,6 +20,11 @@ public class IdleState implements DroneState {
                 subsystem.setState("EN_ROUTE");
                 subsystem.getCurrentState().handleEvent(subsystem, event, msg);
                 break;
+            case DIVERT:
+                Logger.log("[IdleState-" + droneID + "]", "DIVERT => transition to EN_ROUTE state.");
+                subsystem.setState("EN_ROUTE");
+                subsystem.getCurrentState().handleEvent(subsystem, event, msg);
+                break;
             case RESET_CONNECTION:
                 subsystem.resetConnection();
                 break;
