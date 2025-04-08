@@ -27,6 +27,10 @@ public class DroppingAgentState implements DroneState {
                 Logger.log("[DroppingAgentState-" + droneID + "]", "Ignoring event " + event + " while DROPPING.");
         }
     }
+    @Override
+    public String toString() {
+        return "DROPPING";
+    }
 
     private void dropFoam(DroneSubsystem subsystem, Message msg) throws InterruptedException {
         int droneID = subsystem.getDroneID();

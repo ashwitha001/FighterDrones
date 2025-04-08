@@ -2,6 +2,7 @@ package main;
 
 import java.io.IOException;
 import java.net.*;
+import java.time.LocalTime;
 import java.util.*;
 
 public class Scheduler implements Runnable {
@@ -27,6 +28,9 @@ public class Scheduler implements Runnable {
     // FireIncidentSubsystem is assumed to run at localhost:5001.
     private final InetSocketAddress fireIncidentAddress = new InetSocketAddress("localhost", 5001);
 
+    // New variable: tracks whether the system was in an "all drones idle/fault" state during the previous loop.
+    private boolean allDronesIdlePrev = false;
+
     public Scheduler(InetSocketAddress schedulerAddress, SimulationUI ui) {
         this.schedulerAddress = schedulerAddress;
         this.ui = ui;
@@ -37,6 +41,25 @@ public class Scheduler implements Runnable {
             throw new RuntimeException("Could not bind Scheduler socket on port " + schedulerAddress.getPort(), e);
         }
     }
+
+    /**
+     * Checks if no pending fires exist and every registered drone is either idle or in a fault state.
+     */
+    private boolean allDronesAreIdleOrFault() {
+        // If there is any pending fire, then we are not awaiting new fires.
+        if (!pendingFires.isEmpty()) {
+            return false;
+        }
+        // Otherwise, check all drone statuses.
+        for (String status : droneStatus.values()) {
+            // We consider drones in "IDLE", "OFFLINE", or "FAULT" state as not active.
+            if (!(status.equals("IDLE") || status.equals("OFFLINE") || status.equals("FAULT"))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void updateUI(Message m) {
         if (m == null) return;
 
@@ -124,12 +147,39 @@ public class Scheduler implements Runnable {
             try {
                 dispatchIfPossible();
                 Thread.sleep(50);
+                // Check if all drones are idle or in fault state
+                boolean currentAllIdle = allDronesAreIdleOrFault();
+                if (currentAllIdle && !allDronesIdlePrev) {
+                    // Transitioned to the "all drones idle/fault" state; send a one‐time message.
+                    Message awaitingMsg = new Message(
+                            "AWAITING_FIRE",      // new message type
+                            0,                    // droneID not applicable
+                            0,                    // zoneID (can be 0 for base)
+                            "AWAITING",           // severity placeholder
+                            LocalTime.now(),
+                            LocalTime.now().toString(),
+                            0, 0,
+                            0.0,
+                            "AWAITING_FIRE",      // eventID set to a constant or timestamp
+                            "", 0.0
+                    );
+                    try {
+                        UDPUtil.sendMessage(awaitingMsg, fireIncidentAddress);
+                        Logger.log("[Scheduler]", "Sent AWAITING_FIRE message to FireIncidentSubsystem.");
+                    } catch (IOException e) {
+                        Logger.log("[Scheduler]", "Error sending AWAITING_FIRE message: " + e.getMessage());
+                    }
+                }
+                // Update our previous state flag
+                allDronesIdlePrev = currentAllIdle;
+
             } catch (InterruptedException e) {
                 Logger.log("[Scheduler]", "Interrupted => shutting down...");
                 break;
             }
         }
     }
+
 
     private void handleMessage(Message m) {
         Logger.log("[Scheduler]", "Received message => " + m);
@@ -147,12 +197,16 @@ public class Scheduler implements Runnable {
                 }
                 break;
             case "FIRE_EXTINGUISHED":
-                // Mark fire as extinguished
+                Logger.log("[Scheduler]", "FIRE_EXTINGUISHED received: " + m);
+                // Update internal state (remove fire from pending set, etc.)
                 extinguishedFires.add(m.getEventID());
-                // Update foam tracking
-                fireFoamApplied.put(m.getZoneID(), fireTotalFoamNeeded.getOrDefault(m.getZoneID(), 0.0));
-                // Remove from pending fires if present
-                pendingFires.removeIf(fire -> fire.getEventID().equals(m.getEventID()));
+                // Forward the extinguished message to the FireIncidentSubsystem
+                try {
+                    UDPUtil.sendMessage(m, fireIncidentAddress);
+                    Logger.log("[Scheduler]", "Forwarded FIRE_EXTINGUISHED to FireIncidentSubsystem.");
+                } catch (IOException e) {
+                    Logger.log("[Scheduler]", "Error forwarding FIRE_EXTINGUISHED: " + e.getMessage());
+                }
                 break;
             case "FOAM_FINISHED":
             case "PARTIAL_COVERAGE":
@@ -292,7 +346,42 @@ public class Scheduler implements Runnable {
             case "INCIDENT_CONFIRMED":
                 Logger.log("[Scheduler]", "Received INCIDENT_CONFIRMED: " + m);
                 break;
+            case "SHUTDOWN_ALL":
+                Logger.log("[Scheduler]", "Received SHUTDOWN_ALL command.");
+
+
+                for (Integer droneID : droneAddressesMap.keySet()) {
+                    // Construct a shutdown message.
+                    Message shutdownMsg = new Message(
+                            "SHUTDOWN",
+                            droneID,
+                            0,
+                            "SHUTDOWN",
+                            LocalTime.now(),
+                            LocalTime.now().toString(),
+                            0,
+                            0,
+                            0.0,
+                            "SHUTDOWN_" + droneID,
+                            "",
+                            0.0
+                    );
+                    InetSocketAddress targetAddr = droneAddressesMap.get(droneID);
+
+                    try {
+                        UDPUtil.sendMessage(shutdownMsg, targetAddr);
+                        PerformanceLogger.reportFinalDroneMetrics(droneID);
+                        Logger.log("[Scheduler]", "Sent SHUTDOWN command to drone " + droneID);
+                    } catch (IOException e) {
+                        Logger.log("[Scheduler]", "Error sending SHUTDOWN to drone " + droneID + ": " + e.getMessage());
+                    }
+                }
+
+                Logger.log("[Scheduler]", "All drones shutdown. Exiting Scheduler.");
+                System.exit(0);
+                break;
             case "DRONE_COORD_UPDATE":
+                // (You can add any coordinate update handling here if desired.)
                 break;
             default:
                 Logger.log("[Scheduler]", "Unhandled message type: " + type);
@@ -343,6 +432,7 @@ public class Scheduler implements Runnable {
             for (Integer droneId : availableDronesForFire) {
                 if (!"DIVERTIBLE".equals(droneStatus.get(droneId))) continue;
 
+                // Check if diversion is efficient
                 Coordinates droneLoc = droneLocations.get(droneId);
                 double timeToReachFromHere = Utility.computeTravelTime(
                     droneLoc.getX1(), droneLoc.getY1(), 
@@ -356,19 +446,19 @@ public class Scheduler implements Runnable {
 
                 // Divert drone if it's closer or has enough foam
                 if (timeToReachFromHere < timeToReachFromBase || availableFoam >= fire.getRemainingFoamNeeded()) {
-                    PerformanceLogger.recordDispatchTime(fire.getEventID());
+                    PerformanceLogger.recordDispatchTime(fire.getEventID(), fire.getDroneID());
                     double foamToUse = Math.min(availableFoam, fire.getRemainingFoamNeeded());
                     sendDispatchMessage(droneId, fire, "DIVERT", foamToUse);
                     fire.setRemainingFoamNeeded(fire.getRemainingFoamNeeded() - foamToUse);
                     dronesPerFire.put(fire.getEventID(), currentDrones + 1);
-                    
+
                     if (fire.getRemainingFoamNeeded() <= 0) break;
                 }
             }
 
             // If fire still needs foam, use idle drones from base
             if (fire.getRemainingFoamNeeded() > 0) {
-                PerformanceLogger.recordDispatchTime(fire.getEventID());
+                PerformanceLogger.recordDispatchTime(fire.getEventID(), fire.getDroneID());
                 for (Integer droneId : availableDronesForFire) {
                     if (!"IDLE".equals(droneStatus.get(droneId))) continue;
 
@@ -376,7 +466,7 @@ public class Scheduler implements Runnable {
                     sendDispatchMessage(droneId, fire, "DISPATCH_RECEIVED", foamToUse);
                     fire.setRemainingFoamNeeded(fire.getRemainingFoamNeeded() - foamToUse);
                     dronesPerFire.put(fire.getEventID(), currentDrones + 1);
-                    
+
                     if (fire.getRemainingFoamNeeded() <= 0) break;
                 }
             }

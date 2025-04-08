@@ -36,5 +36,9 @@ public class IdleState implements DroneState {
                 Logger.log("[IdleState-" + droneID + "]", "Ignoring event " + event + " while IDLE.");
         }
     }
+    @Override
+    public String toString() {
+        return "IDLE";
+    }
 }
 

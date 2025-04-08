@@ -11,7 +11,6 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
-
 public class DroneSubsystem implements Runnable {
 
     private SimulationUI simulationUI = null;
@@ -32,15 +31,14 @@ public class DroneSubsystem implements Runnable {
 
     // Fault timer (used to inject faults based on faultTime)
     private Timer faultTimer = null;
-
-        // Flag for when fault happens
+    // Flag for when fault happens
     private volatile boolean timeoutTriggered = false;
 
     private volatile boolean isShutDown = false;
-    private volatile Message lastKnownMessage = null;  //store the last message
-    private final Set<String> firesWithFaults = new HashSet<>();  // Track which fires have had faults triggered
-    private final Set<String> attemptedFires = new HashSet<>();  // Track which fires this drone has already attempted to handle
-    
+    private volatile Message lastKnownMessage = null;  // Store the last message
+    private final Set<String> firesWithFaults = new HashSet<>();  // Track fires that have had faults triggered
+    private final Set<String> attemptedFires = new HashSet<>();  // Track fires this drone has attempted to handle
+
     public DroneSubsystem(int droneID, InetSocketAddress schedulerAddress) {
         this.droneID = droneID;
         this.schedulerAddress = schedulerAddress;
@@ -50,11 +48,13 @@ public class DroneSubsystem implements Runnable {
         stateMap.put("EN_ROUTE", new EnRouteState());
         stateMap.put("DROPPING", new DroppingAgentState());
         stateMap.put("FAULT", new FaultState());
-        
+
         currentLocation = new Coordinates(0, 0);
         totalFlightTime = 0.0;
         foamRemaining = FOAM_CAPACITY;
         currentState = stateMap.get("IDLE");
+        PerformanceLogger.initializeDroneIdleStart(droneID);
+
 
         try {
             // Bind to an ephemeral port.
@@ -69,6 +69,7 @@ public class DroneSubsystem implements Runnable {
             try {
                 Logger.log("[DroneSubsystem-" + droneID + "]", "Received message => " + m);
 
+                // Convert the message type to a DroneEvent. If invalid, log and exit.
                 DroneEvent event;
                 try {
                     event = DroneEvent.valueOf(m.getType());
@@ -77,49 +78,63 @@ public class DroneSubsystem implements Runnable {
                     return;
                 }
 
-                // If the message is a dispatch (or divert) with fault data, start the fault timer.
-                // Only trigger faults for fires that haven't had faults triggered yet
+                // Handle SHUTDOWN and RESET_CONNECTION events immediately.
+                if (event == DroneEvent.SHUTDOWN) {
+                    Logger.log("[DroneSubsystem-" + droneID + "]", "Shutdown command received. Shutting down.");
+                    shutDown();
+                    return;
+                } else if (event == DroneEvent.RESET_CONNECTION) {
+                    Logger.log("[DroneSubsystem-" + droneID + "]", "Reset connection command received. Resetting connection.");
+                    resetConnection();
+                    return;
+                }
+
+                // If a dispatch (or divert) message has fault data, start the fault timer.
                 if ((event == DroneEvent.DISPATCH_RECEIVED || event == DroneEvent.DIVERT)
                         && m.getFaultType() != null && !m.getFaultType().isEmpty()
                         && m.getFaultTime() > 0) {
-                    String fireKey = m.getEventID();  // Use eventID as unique identifier for the fire
+                    String fireKey = m.getEventID();  // Unique identifier for the fire
                     if (!firesWithFaults.contains(fireKey)) {
                         firesWithFaults.add(fireKey);
                         if (!timeoutTriggered) {
                             startFaultTimer(m);
                         }
                     } else {
-                        // For subsequent dispatches to the same fire, clear fault data
+                        // For subsequent dispatches for the same fire, clear fault info.
                         m = new Message(
-                            m.getType(),
-                            m.getDroneID(),
-                            m.getZoneID(),
-                            m.getSeverity(),
-                            m.getEventTime(),
-                            m.getEventTimeString(),
-                            m.getCenterX(),
-                            m.getCenterY(),
-                            m.getRemainingFoamNeeded(),
-                            m.getEventID(),
-                            "",  // Clear fault type
-                            0.0  // Clear fault time
+                                m.getType(),
+                                m.getDroneID(),
+                                m.getZoneID(),
+                                m.getSeverity(),
+                                m.getEventTime(),
+                                m.getEventTimeString(),
+                                m.getCenterX(),
+                                m.getCenterY(),
+                                m.getRemainingFoamNeeded(),
+                                m.getEventID(),
+                                "",  // Clear fault type
+                                0.0  // Clear fault time
                         );
                     }
                 }
 
-                // Check if this drone has already attempted to handle this fire
-                if ((event == DroneEvent.DISPATCH_RECEIVED || event == DroneEvent.DIVERT) 
-                    && attemptedFires.contains(m.getEventID())) {
-                    Logger.log("[DroneSubsystem-" + droneID + "]", "Ignoring dispatch to fire " + m.getEventID() + " - already attempted to handle this fire.");
+                // Check if this drone has already attempted to handle this fire.
+                if ((event == DroneEvent.DISPATCH_RECEIVED || event == DroneEvent.DIVERT)
+                        && attemptedFires.contains(m.getEventID())) {
+                    Logger.log("[DroneSubsystem-" + droneID + "]", "Ignoring dispatch to fire " + m.getEventID()
+                            + " - already attempted to handle this fire.");
                     return;
                 }
 
-                // Add the fire to attempted fires when first dispatched
+                // If handling a new dispatch or divert, record that we attempted the fire.
                 if (event == DroneEvent.DISPATCH_RECEIVED || event == DroneEvent.DIVERT) {
                     attemptedFires.add(m.getEventID());
                 }
 
+                // Pass the message to the current state's handler.
                 currentState.handleEvent(this, event, m);
+                // Save the last known message for performance tracking if needed.
+                lastKnownMessage = m;
             } catch (InterruptedException ex) {
                 Logger.log("[DroneSubsystem-" + droneID + "]", "Interrupted in message handling.");
             }
@@ -127,7 +142,7 @@ public class DroneSubsystem implements Runnable {
         receiverThread.start();
 
         // Send registration message to Scheduler.
-        // Use centerX to carry our ephemeral port; no fault data for registration.
+        // Use centerX to carry the ephemeral port.
         Message registration = new Message(
                 "DRONE_REGISTRATION",
                 droneID,
@@ -144,11 +159,9 @@ public class DroneSubsystem implements Runnable {
         sendToScheduler(registration);
     }
 
-    // Fault timer management
+    // Fault timer management: Do not cancel the timer if the fault should persist
     public synchronized void startFaultTimer(Message m) {
-        // Cancel any existing timer.
         cancelFaultTimer();
-        // Start a new timer if fault info is present.
         if (m.getFaultType() != null && !m.getFaultType().isEmpty() && m.getFaultTime() > 0) {
             faultTimer = new Timer();
             faultTimer.schedule(new TimerTask() {
@@ -163,14 +176,14 @@ public class DroneSubsystem implements Runnable {
                             m.getEventTime(),
                             m.getEventTimeString(),
                             currentLocation.getX1(),  // Use current location
-                            currentLocation.getY1(),  // Use current location
+                            currentLocation.getY1(),
                             getFoamRemaining(),
                             m.getEventID(),
                             m.getFaultType(),
                             m.getFaultTime()
                     );
                     timeoutTriggered = true;
-                    
+
                     // Handle the fault based on type
                     switch (m.getFaultType()) {
                         case "NOZZLE_JAM":
@@ -198,7 +211,6 @@ public class DroneSubsystem implements Runnable {
                             ));
                             break;
                     }
-                    
                     sendToScheduler(faultMsg);
                 }
             }, (long)(m.getFaultTime() * 1000));
@@ -223,25 +235,38 @@ public class DroneSubsystem implements Runnable {
                 break;
             }
         }
+        // Cleanup operations (e.g., close socket) can be performed here.
+        if (socket != null && !socket.isClosed()) {
+            socket.close();
+        }
         Logger.log("[DroneSubsystem-" + droneID + "]", "System shutdown.");
     }
 
+    // Simulate a reset connection by pausing for 10 seconds, then resuming.
     public void resetConnection() throws InterruptedException {
-        Logger.log("[DroneSubsystem-" + droneID + "]", "resetting connection...");
+        Logger.log("[DroneSubsystem-" + droneID + "]", "Resetting connection. Pausing for 10 seconds...");
         Thread.sleep(10000);
-        Logger.log("[DroneSubsystem-" + droneID + "]", "resuming operations.");
-        setTimeoutTriggered(false); // clear fault flag after reset
+        Logger.log("[DroneSubsystem-" + droneID + "]", "Resuming operations after connection reset.");
+        setTimeoutTriggered(false);
+    }
+
+    // Shut down the drone: stop processing messages, cancel timers, and mark as shut down.
+    public void shutDown() {
+        Logger.log("[DroneSubsystem-" + droneID + "]", "Executing shutdown procedure.");
+        isShutDown = true;
+        cancelFaultTimer();
+        // Additional clean-up (e.g., closing the socket) is handled in run() upon loop exit.
     }
 
     public void setState(String stateName) {
         if (stateMap.containsKey(stateName)) {
             this.currentState = stateMap.get(stateName);
         } else {
-            Logger.log("[DroneSubsystem-" + droneID + "]", "No such state => " + stateName + ". Keeping current state.");
+            Logger.log("[DroneSubsystem-" + droneID + "]", "No such state: " + stateName + ". Keeping current state.");
         }
     }
 
-    public Map <String, DroneState> getStateMap() {
+    public Map<String, DroneState> getStateMap() {
         return stateMap;
     }
 
@@ -252,8 +277,8 @@ public class DroneSubsystem implements Runnable {
     public Message getLastKnownMessage() {
         return this.lastKnownMessage;
     }
+
     public boolean isShutDown() { return isShutDown; }
-    public void shutDown() { isShutDown = true; }
 
     public DroneState getCurrentState() {
         return currentState;
@@ -298,7 +323,7 @@ public class DroneSubsystem implements Runnable {
     public boolean getTimeoutTriggered() {
         return timeoutTriggered;
     }
-    
+
     public void sendToScheduler(Message m) {
         try {
             UDPUtil.sendMessage(m, schedulerAddress);
@@ -318,5 +343,4 @@ public class DroneSubsystem implements Runnable {
     public SimulationUI getSimulationUI() {
         return simulationUI;
     }
-
 }

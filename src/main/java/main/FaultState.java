@@ -46,4 +46,8 @@ public class FaultState implements DroneState {
                 Logger.log("[FaultState-" + droneID + "]", "In FaultState, ignoring event: " + event);
         }
     }
+    @Override
+    public String toString() {
+        return "FAULT";
+    }
 }

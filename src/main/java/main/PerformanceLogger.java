@@ -9,66 +9,113 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class PerformanceLogger {
     private static final String LOG_FILE = "performance_metrics.txt";
-    // Map eventID -> start time (ms)
+
+    // Event metrics: map eventID -> start time (ms) and dispatch time
     private static ConcurrentHashMap<String, Long> eventStartTimes = new ConcurrentHashMap<>();
-    // Map eventID -> dispatch time (ms) if needed
     private static ConcurrentHashMap<String, Long> dispatchTimes = new ConcurrentHashMap<>();
 
-    // Formatter for timestamps: hours:minutes:seconds.milliseconds
+    // Drone state metrics: track the last time a drone changed state.
+    // When a drone goes from idle to moving, record the idle period.
+    private static ConcurrentHashMap<Integer, Long> droneIdleStart = new ConcurrentHashMap<>();
+    // When a drone starts moving (EN_ROUTE or DROPPING) record its start time.
+    private static ConcurrentHashMap<Integer, Long> droneMoveStart = new ConcurrentHashMap<>();
+    // Sums (in ms) of idle and moving times.
+    private static ConcurrentHashMap<Integer, Long> totalIdleTime = new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<Integer, Long> totalMoveTime = new ConcurrentHashMap<>();
+
+    // Formatter for human-readable timestamps (with milliseconds)
     private static final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
 
-    /**
-     * Records the event start time using the current system time.
-     * Logs the event's start time in a human-readable format.
-     */
+    // ----- Event-level Metrics -----
     public static void recordEventStart(String eventID) {
         long now = System.currentTimeMillis();
         eventStartTimes.put(eventID, now);
         logMetric("Event " + eventID + " started at " + sdf.format(new Date(now)));
     }
 
-    /**
-     * Records the dispatch time for an event, calculating the difference
-     * from when the event started.
-     */
-    public static void recordDispatchTime(String eventID) {
+    public static void recordDispatchTime(String eventID, int droneID) {
         Long start = eventStartTimes.get(eventID);
         if (start != null) {
             long now = System.currentTimeMillis();
             long responseTimeMs = now - start;
             dispatchTimes.put(eventID, now);
-            logMetric("Event " + eventID + " dispatch time: " + formatSeconds(responseTimeMs)
-                    + " sec (dispatched at " + sdf.format(new Date(now)) + ")");
+            logMetric("Event " + eventID + " dispatched by Drone " + droneID + " at " + sdf.format(new Date(now)) +
+                    " with dispatch time: " + formatSeconds(responseTimeMs) + " sec");
         }
     }
 
-    /**
-     * Records the event completion time (i.e. when the fire is extinguished).
-     * It calculates the elapsed time from when the event started.
-     */
     public static void recordEventCompletion(String eventID) {
         Long start = eventStartTimes.get(eventID);
         if (start != null) {
             long now = System.currentTimeMillis();
             long elapsedMs = now - start;
-            logMetric("Event " + eventID + " extinguish time: " + formatSeconds(elapsedMs)
-                    + " sec (completed at " + sdf.format(new Date(now)) + ")");
+            logMetric("Event " + eventID + " extinguish time: " + formatSeconds(elapsedMs) +
+                    " sec (completed at " + sdf.format(new Date(now)) + ")");
             eventStartTimes.remove(eventID);
             dispatchTimes.remove(eventID);
         }
     }
 
+    // ----- Drone-level State Metrics -----
     /**
-     * Converts a time difference in milliseconds to seconds formatted with two decimals.
+     * Record a drone state transition. For example, if a drone transitions
+     * from IDLE to EN_ROUTE, record the idle time that ended and the moving start.
      */
+    public static void recordDroneStateTransition(int droneId, String oldState, String newState) {
+        long now = System.currentTimeMillis();
+        // Transition: IDLE -> (EN_ROUTE or DROPPING) means the drone is starting to move.
+        if ("IDLE".equals(oldState) && ("EN_ROUTE".equals(newState) || "DROPPING".equals(newState))) {
+            Long idleStart = droneIdleStart.remove(droneId);
+            if (idleStart != null) {
+                long idleDuration = now - idleStart;
+                totalIdleTime.merge(droneId, idleDuration, Long::sum);
+                logMetric("Drone " + droneId + " idle period ended: " + formatSeconds(idleDuration) + " sec");
+            }
+            droneMoveStart.put(droneId, now);
+            logMetric("Drone " + droneId + " started moving at " + sdf.format(new Date(now)));
+        }
+        // Transition: (EN_ROUTE or DROPPING) -> IDLE means the drone finished moving.
+        else if (("EN_ROUTE".equals(oldState) || "DROPPING".equals(oldState)) && "IDLE".equals(newState)) {
+            Long moveStart = droneMoveStart.remove(droneId);
+            if (moveStart != null) {
+                long moveDuration = now - moveStart;
+                totalMoveTime.merge(droneId, moveDuration, Long::sum);
+                logMetric("Drone " + droneId + " moving period ended: " + formatSeconds(moveDuration) + " sec");
+            }
+            droneIdleStart.put(droneId, now);
+            logMetric("Drone " + droneId + " started idling at " + sdf.format(new Date(now)));
+        }
+        // Additional transitions (e.g., moving to fault) can be added here as needed.
+    }
+    public static void initializeDroneIdleStart(int droneId) {
+        long now = System.currentTimeMillis();
+        droneIdleStart.put(droneId, now);
+        logMetric("Drone " + droneId + " initialized in IDLE state at " + sdf.format(new Date(now)));
+    }
+    /**
+     * At the end of the simulation (or periodically), report overall metrics per drone.
+     */
+    public static void reportFinalDroneMetrics(int droneId) {
+
+        long now = System.currentTimeMillis();
+
+        // Get already accumulated times.
+        long idle = totalIdleTime.getOrDefault(droneId, 0L);
+        long move = totalMoveTime.getOrDefault(droneId, 0L);
+
+        // If the drone is currently idle, add the idle time since the last idle transition.
+        if (droneIdleStart.containsKey(droneId)) {
+            idle += now - droneIdleStart.get(droneId);
+        }
+        logMetric("Drone " + droneId + " total idle time: " + formatSeconds(idle) + " sec");
+        logMetric("Drone " + droneId + " total moving time: " + formatSeconds(move) + " sec");
+    }
+
     private static String formatSeconds(long ms) {
         double seconds = ms / 1000.0;
         return String.format("%.2f", seconds);
     }
 
-    /**
-     * Synchronized method to append a metric entry to the log file.
-     */
     private static synchronized void logMetric(String entry) {
         try (FileWriter fw = new FileWriter(LOG_FILE, true);
              PrintWriter pw = new PrintWriter(fw)) {

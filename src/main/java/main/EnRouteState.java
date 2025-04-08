@@ -117,4 +117,8 @@ public class EnRouteState implements DroneState {
         subsystem.setTotalFlightTime(0.0);
         subsystem.setFoamRemaining(DroneSubsystem.getFoamCapacity());
     }
+    @Override
+    public String toString() {
+        return "EN_ROUTE";
+    }
 }

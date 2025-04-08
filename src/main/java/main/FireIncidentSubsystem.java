@@ -10,15 +10,25 @@ import java.util.*;
  * FireIncidentSubsystem
  * 1. Reads zone data from `zones.csv` (defining rectangular corners or base).
  * 2. Reads fire events from `events.csv` (time, zone, severity) and calculates center coordinates + foam needed.
- * 3. Creates Message objects for each event and sends them to the Scheduler via `incidentQueue`.
- * 4. Logs and checks for FIRE_EXTINGUISHED completions via `incidentCompletionQueue`.
+ * 3. Creates Message objects for each event and sends them to the Scheduler via an incident queue.
+ * 4. Logs and checks for FIRE_EXTINGUISHED completions via an incident completion queue.
  * 5. Continues listening for completions until interrupted or program ends.
+ *
+ * NEW: The subsystem keeps track of whether all fire events have been processed (eventsCompleted).
+ *      Then, when it later receives an AWAITING_FIRE message from the Scheduler, it checks that:
+ *       - eventsCompleted is true,
+ *       - activeFires is empty (all fires extinguished)
+ *      Only then does it send a SHUTDOWN_ALL command to the Scheduler.
  */
 public class FireIncidentSubsystem implements Runnable {
     private final InetSocketAddress schedulerAddress;
-    private final DatagramSocket socket; // to receive confirmations
+    private final DatagramSocket socket; // to receive confirmations and other messages
     private final Map<Integer, Coordinates> zoneMap = new HashMap<>();
-    private final Map<String, Message> activeFires = new HashMap<>(); // Track active fires by eventID
+    // Track active fires by eventID (fires that are not yet extinguished)
+    private final Map<String, Message> activeFires = new HashMap<>();
+
+    // New flag: becomes true once the events file has been fully processed.
+    private volatile boolean eventsCompleted = false;
 
     public FireIncidentSubsystem(InetSocketAddress schedulerAddress, int localPort) {
         this.schedulerAddress = schedulerAddress;
@@ -35,12 +45,14 @@ public class FireIncidentSubsystem implements Runnable {
         loadZoneData("zones.csv");
         List<Message> allEvents = loadAndParseEvents("events.csv");
 
+        // Start the UDPReceiver to listen for incoming messages.
         Thread receiverThread = new Thread(new UDPReceiver(socket, m -> {
-            if ("FIRE_EXTINGUISHED".equals(m.getType())) {
+            String msgType = m.getType();
+            if ("FIRE_EXTINGUISHED".equals(msgType)) {
                 Logger.log("[FireIncidentSubsystem]", "Completion confirmed: " + m);
-                // Remove the extinguished fire from active fires
+                // Remove the extinguished fire from active fires.
                 activeFires.remove(m.getEventID());
-                
+
                 Message confirm = new Message(
                         "INCIDENT_CONFIRMED",
                         m.getDroneID(),
@@ -61,37 +73,70 @@ public class FireIncidentSubsystem implements Runnable {
                     Logger.log("[FireIncidentSubsystem]", "Error sending confirmation: " + e.getMessage());
                 }
             }
+            // NEW: Process AWAITING_FIRE message.
+            else if ("AWAITING_FIRE".equals(msgType)) {
+                Logger.log("[FireIncidentSubsystem]", "Received AWAITING_FIRE from Scheduler.");
+                // Only if all events have been processed AND no active fires remain...
+                if (eventsCompleted && activeFires.isEmpty()) {
+                    Logger.log("[FireIncidentSubsystem]", "All fire events processed and extinguished. Sending SHUTDOWN_ALL command to Scheduler.");
+                    Message shutdownCmd = new Message(
+                            "SHUTDOWN_ALL",
+                            -1,                // -1 indicates not associated with a particular drone.
+                            0,                 // Zone 0 (base)
+                            "SHUTDOWN_ALL",
+                            LocalTime.now(),
+                            LocalTime.now().toString(),
+                            0,
+                            0,
+                            0.0,
+                            "SHUTDOWN_ALL",
+                            "",
+                            0.0
+                    );
+                    try {
+                        UDPUtil.sendMessage(shutdownCmd, schedulerAddress);
+                        Logger.log("[FireIncidentSubsystem]", "Sent SHUTDOWN_ALL command: " + shutdownCmd);
+                        System.exit(0);
+                    } catch (IOException e) {
+                        Logger.log("[FireIncidentSubsystem]", "Error sending SHUTDOWN_ALL command: " + e.getMessage());
+                    }
+                } else {
+                    Logger.log("[FireIncidentSubsystem]", "Not ready for shutdown. " +
+                            "eventsCompleted=" + eventsCompleted + ", activeFires=" + activeFires.keySet());
+                }
+            }
         }), "FireIncidentReceiver");
         receiverThread.start();
 
-        // Sort events by time
+        // Sort the events by time.
         allEvents.sort(Comparator.comparing(Message::getEventTime));
 
-        // Get the start time of the first event
+        // Get the start time of the first event.
         LocalTime startTime = allEvents.get(0).getEventTime();
         LocalTime currentTime = startTime;
 
+        // Process and send out fire events.
         for (Message e : allEvents) {
             try {
-                // Calculate the delay until the next event
-                long delayMillis = (long)(Utility.convertToSimulationTime(
-                    java.time.Duration.between(currentTime, e.getEventTime()).getSeconds()
+                // Calculate the delay until the next event (simulation time).
+                long delayMillis = (long) (Utility.convertToSimulationTime(
+                        java.time.Duration.between(currentTime, e.getEventTime()).getSeconds()
                 ) * 1000);
 
                 if (delayMillis > 0) {
                     Thread.sleep(delayMillis);
                 }
 
-                // Only send the event if the fire is still active (not extinguished)
+                // Send the event if this fire has not yet been extinguished.
                 if (!activeFires.containsKey(e.getEventID())) {
                     Logger.log("[FireIncidentSubsystem]", "Sent event: " + e);
                     UDPUtil.sendMessage(e, schedulerAddress);
-                    // Add to active fires map
+                    // Add event to the active fires map.
                     activeFires.put(e.getEventID(), e);
                 } else {
                     Logger.log("[FireIncidentSubsystem]", "Skipping event - fire already extinguished: " + e);
                 }
-                
+
                 currentTime = e.getEventTime();
             } catch (InterruptedException | IOException ex) {
                 Logger.log("[FireIncidentSubsystem]", "Interrupted or error => shutting down.");
@@ -99,7 +144,11 @@ public class FireIncidentSubsystem implements Runnable {
                 break;
             }
         }
+        // All events processed.
+        eventsCompleted = true;
+        Logger.log("[FireIncidentSubsystem]", "Finished processing all events.");
 
+        // Continue running to process confirmations and awaiting messages.
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 Thread.sleep(200);
@@ -129,7 +178,8 @@ public class FireIncidentSubsystem implements Runnable {
         } catch (IOException e) {
             System.err.println("[FireIncidentSubsystem] Could not read " + filename);
         }
-        zoneMap.put(0, new Coordinates(0,0,0,0));
+        // Always add a base zone with ID 0.
+        zoneMap.put(0, new Coordinates(0, 0, 0, 0));
         System.out.println("[FireIncidentSubsystem] Loaded zone 0: " + zoneMap.get(0) + " (base)");
     }
 
@@ -156,18 +206,25 @@ public class FireIncidentSubsystem implements Runnable {
         int zoneID = Integer.parseInt(parts[1].trim());
         String severity = parts[3].trim().toUpperCase();
         LocalTime parsedTime = LocalTime.parse(timeStr, fmt);
-        Coordinates zC = zoneMap.getOrDefault(zoneID, new Coordinates(0,0,0,0));
+        Coordinates zC = zoneMap.getOrDefault(zoneID, new Coordinates(0, 0, 0, 0));
         int cx = (zC.getX1() + zC.getX2()) / 2;
         int cy = (zC.getY1() + zC.getY2()) / 2;
         double needed;
         switch (severity) {
-            case "LOW":       needed = 10.0; break;
-            case "MODERATE":  needed = 20.0; break;
-            case "HIGH":      needed = 30.0; break;
-            default:          needed = 10.0;
+            case "LOW":
+                needed = 10.0;
+                break;
+            case "MODERATE":
+                needed = 20.0;
+                break;
+            case "HIGH":
+                needed = 30.0;
+                break;
+            default:
+                needed = 10.0;
         }
         String eventID = timeStr + "_Z" + zoneID;
-        // New fault columns: FAULT and FAULT_TIME (if provided)
+        // Read optional fault fields: faultType and faultTime.
         String faultType = "";
         double faultTime = 0.0;
         if (parts.length >= 6) {
@@ -198,6 +255,6 @@ public class FireIncidentSubsystem implements Runnable {
         String[] xy = c.split(";");
         int x = Integer.parseInt(xy[0].trim());
         int y = Integer.parseInt(xy[1].trim());
-        return new int[]{x, y};
+        return new int[] { x, y };
     }
 }
