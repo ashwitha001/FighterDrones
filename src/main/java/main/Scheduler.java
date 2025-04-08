@@ -22,6 +22,7 @@ public class Scheduler implements Runnable {
     // Track total foam needed and applied for each fire
     private final Map<Integer, Double> fireTotalFoamNeeded = new HashMap<>();
     private final Map<Integer, Double> fireFoamApplied = new HashMap<>();
+    private final Map<String, Integer> dronesPerFire = new HashMap<>();  // Track number of drones per fire
 
     // FireIncidentSubsystem is assumed to run at localhost:5001.
     private final InetSocketAddress fireIncidentAddress = new InetSocketAddress("localhost", 5001);
@@ -291,6 +292,8 @@ public class Scheduler implements Runnable {
             case "INCIDENT_CONFIRMED":
                 Logger.log("[Scheduler]", "Received INCIDENT_CONFIRMED: " + m);
                 break;
+            case "DRONE_COORD_UPDATE":
+                break;
             default:
                 Logger.log("[Scheduler]", "Unhandled message type: " + type);
         }
@@ -311,6 +314,14 @@ public class Scheduler implements Runnable {
             return;
         }
 
+        // Check if we've already dispatched the maximum number of drones for this fire
+        int currentDrones = dronesPerFire.getOrDefault(nextFire.getEventID(), 0);
+        if (currentDrones >= 2) {
+            Logger.log("[Scheduler]", "Maximum number of drones (2) already dispatched to fire " + nextFire.getEventID());
+            pendingFires.poll(); // Remove from queue
+            return;
+        }
+
         // prioritize fires: HIGH > MODERATE > LOW
         List<Message> prioritizedFires = new ArrayList<>(pendingFires);
         prioritizedFires.sort((f1, f2) -> {
@@ -320,18 +331,18 @@ public class Scheduler implements Runnable {
         });
 
         for (Message fire : prioritizedFires) {
-            // Skip if no drones available
-            List<Integer> availableDronesForFire = getAvailableDrones();
-            if (availableDronesForFire.isEmpty()) {
-                pendingFires.add(fire);
+            // Check if we've already dispatched the maximum number of drones for this fire
+            currentDrones = dronesPerFire.getOrDefault(fire.getEventID(), 0);
+            if (currentDrones >= 2) {
+                Logger.log("[Scheduler]", "Maximum number of drones (2) already dispatched to fire " + fire.getEventID());
                 continue;
             }
 
-            // First try to use nearby drones that are returning with foam
+            List<Integer> availableDronesForFire = new ArrayList<>(availableDrones);
+            // First try to divert returning drones
             for (Integer droneId : availableDronesForFire) {
                 if (!"DIVERTIBLE".equals(droneStatus.get(droneId))) continue;
 
-                // Check if diversion is efficient
                 Coordinates droneLoc = droneLocations.get(droneId);
                 double timeToReachFromHere = Utility.computeTravelTime(
                     droneLoc.getX1(), droneLoc.getY1(), 
@@ -349,6 +360,7 @@ public class Scheduler implements Runnable {
                     double foamToUse = Math.min(availableFoam, fire.getRemainingFoamNeeded());
                     sendDispatchMessage(droneId, fire, "DIVERT", foamToUse);
                     fire.setRemainingFoamNeeded(fire.getRemainingFoamNeeded() - foamToUse);
+                    dronesPerFire.put(fire.getEventID(), currentDrones + 1);
                     
                     if (fire.getRemainingFoamNeeded() <= 0) break;
                 }
@@ -363,6 +375,7 @@ public class Scheduler implements Runnable {
                     double foamToUse = Math.min(DroneSubsystem.getFoamCapacity(), fire.getRemainingFoamNeeded());
                     sendDispatchMessage(droneId, fire, "DISPATCH_RECEIVED", foamToUse);
                     fire.setRemainingFoamNeeded(fire.getRemainingFoamNeeded() - foamToUse);
+                    dronesPerFire.put(fire.getEventID(), currentDrones + 1);
                     
                     if (fire.getRemainingFoamNeeded() <= 0) break;
                 }
