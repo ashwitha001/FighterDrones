@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class PerformanceLogger {
     private static final String LOG_FILE = "performance_metrics.txt";
+    private static final long programStartTime = System.currentTimeMillis();
 
     // Event metrics: map eventID -> start time (ms) and dispatch time
     private static ConcurrentHashMap<String, Long> eventStartTimes = new ConcurrentHashMap<>();
@@ -33,6 +34,10 @@ public class PerformanceLogger {
         logMetric("Event " + eventID + " started at " + sdf.format(new Date(now)));
     }
 
+    public static void logProgramDuration() {
+        long durationMs = System.currentTimeMillis() - programStartTime;
+        logMetric("Total program duration: " + formatSeconds(durationMs) + " sec");
+    }
     public static void recordDispatchTime(String eventID, int droneID) {
         Long start = eventStartTimes.get(eventID);
         if (start != null) {
@@ -98,10 +103,15 @@ public class PerformanceLogger {
     public static void reportFinalDroneMetrics(int droneId) {
 
         long now = System.currentTimeMillis();
+        long totalDurationMs = now - programStartTime;
 
         // Get already accumulated times.
         long idle = totalIdleTime.getOrDefault(droneId, 0L);
-        long move = totalMoveTime.getOrDefault(droneId, 0L);
+        if (droneIdleStart.containsKey(droneId)) {
+            idle += now - droneIdleStart.get(droneId);
+        }
+        long move = totalDurationMs - idle;
+        double utilization = (double) move / totalDurationMs;
 
         // If the drone is currently idle, add the idle time since the last idle transition.
         if (droneIdleStart.containsKey(droneId)) {
@@ -109,6 +119,7 @@ public class PerformanceLogger {
         }
         logMetric("Drone " + droneId + " total idle time: " + formatSeconds(idle) + " sec");
         logMetric("Drone " + droneId + " total moving time: " + formatSeconds(move) + " sec");
+        logMetric("Drone " + droneId + " utilization: " + String.format("%.2f%%", utilization * 100));
     }
 
     private static String formatSeconds(long ms) {

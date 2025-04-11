@@ -258,6 +258,41 @@ public class DroneSubsystem implements Runnable {
         // Additional clean-up (e.g., closing the socket) is handled in run() upon loop exit.
     }
 
+    public void returnToBase() {
+        // Only record the transition if the drone was actually moving.
+        // (For example, if the current state is not an instance of IdleState.)
+
+        // Update the drone’s state to IDLE.
+        setState("IDLE");
+
+        // Optionally, explicitly set the current location to (0,0) to reflect base.
+        setCurrentLocation(new Coordinates(0, 0));
+
+        // Create the ARRIVE_BASE message.
+        Message arriveBaseMsg = new Message(
+                "ARRIVE_BASE",
+                droneID,
+                0, // assuming 0 represents the base zone
+                "ARRIVE_BASE",
+                java.time.LocalTime.now(),
+                java.time.LocalTime.now().toString(),
+                getCurrentLocation().getX1(), // should be 0 after update
+                getCurrentLocation().getY1(), // should be 0 after update
+                getFoamRemaining(),
+                "ARRIVE_BASE_" + droneID,
+                "",
+                0.0
+        );
+
+        // Send the ARRIVE_BASE message to the scheduler.
+        sendToScheduler(arriveBaseMsg);
+
+        Logger.log("[DroneSubsystem-" + droneID + "]", "Returned to base. ARRIVE_BASE message sent and state updated to IDLE.");
+    }
+
+
+
+
     public void setState(String stateName) {
         if (stateMap.containsKey(stateName)) {
             this.currentState = stateMap.get(stateName);

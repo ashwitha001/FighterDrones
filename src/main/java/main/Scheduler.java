@@ -185,6 +185,28 @@ public class Scheduler implements Runnable {
         Logger.log("[Scheduler]", "Received message => " + m);
         int dID = m.getDroneID();
         String type = m.getType();
+
+        // --- Transition Logging Injection ---
+        // (a) EN_ROUTE to IDLE: if a drone has sent an ARRIVE_BASE message,
+        //     or if a coordinate update reports center (0,0),
+        //     record transition from EN_ROUTE to IDLE (if not already IDLE).
+        if (type.equals("ARRIVE_BASE") ||
+                (type.equals("DRONE_COORD_UPDATE") && m.getCenterX() == 0 && m.getCenterY() == 0)) {
+            if (!"IDLE".equals(droneStatus.get(dID))) {
+                PerformanceLogger.recordDroneStateTransition(dID, "EN_ROUTE", "IDLE");
+                Logger.log("[Scheduler]", "Drone " + dID + " transitioned to IDLE (returned to base).");
+            }
+        }
+
+        // (b) IDLE to EN_ROUTE: if a DRONE_EN_ROUTE message is received and
+        //     the drone is not already en route, record transition from IDLE to EN_ROUTE.
+        if (type.equals("DRONE_EN_ROUTE")) {
+            if (!"EN_ROUTE".equals(droneStatus.get(dID))) {
+                PerformanceLogger.recordDroneStateTransition(dID, "IDLE", "EN_ROUTE");
+                Logger.log("[Scheduler]", "Drone " + dID + " transitioned from IDLE to EN_ROUTE.");
+            }
+        }
+        // --- End Transition Logging Injection ---
         switch (type) {
             case "ACTIVE_FIRE":
                 PerformanceLogger.recordEventStart(m.getEventID());
@@ -252,7 +274,7 @@ public class Scheduler implements Runnable {
                 Logger.log("[Scheduler]", "Drone " + dID + " is divertible from " +
                         droneLocations.get(dID) + " with foam " + droneFoamMap.get(dID));
                 break;
-            case "DRONE_IDLE":
+            case "ARRIVE_BASE":
                 droneStatus.put(dID, "IDLE");
                 droneLocations.remove(dID);
                 droneFoamMap.remove(dID);
@@ -378,6 +400,7 @@ public class Scheduler implements Runnable {
                 }
 
                 Logger.log("[Scheduler]", "All drones shutdown. Exiting Scheduler.");
+                PerformanceLogger.logProgramDuration();
                 System.exit(0);
                 break;
             case "DRONE_COORD_UPDATE":
@@ -528,25 +551,26 @@ public class Scheduler implements Runnable {
         } else {
             severity = "HIGH";
         }
+        PerformanceLogger.recordDispatchTime(fire.getEventID(), droneId);
 
         Message dispatch = new Message(
-            dispatchType,
-            droneId,
-            fire.getZoneID(),
-            severity,
-            fire.getEventTime(),
-            fire.getEventTimeString(),
-            fire.getCenterX(),
-            fire.getCenterY(),
-            foamAmount,
-            fire.getEventID(),
-            fire.getFaultType(),
-            fire.getFaultTime()
+                dispatchType,
+                droneId,
+                fire.getZoneID(),
+                severity,
+                fire.getEventTime(),
+                fire.getEventTimeString(),
+                fire.getCenterX(),
+                fire.getCenterY(),
+                foamAmount,
+                fire.getEventID(),
+                fire.getFaultType(),
+                fire.getFaultTime()
         );
-        
+
         Logger.log("[Scheduler]", dispatchType + " Drone " + droneId + " => " + fire);
         droneStatus.put(droneId, "EN_ROUTE");
-        
+
         InetSocketAddress target = droneAddressesMap.get(droneId);
         if (target != null) {
             try {

@@ -71,38 +71,43 @@ public class Utility {
 
     public static void showProgress(double totalTime, String label, DroneSubsystem subsystem, int x1, int y1, int x2, int y2) throws InterruptedException {
         final int STEPS = (int) Math.floor(totalTime);
-        double stepDur = 50;
+        double stepDur = 500; // time between updates in milliseconds
 
         for (int i = 0; i <= STEPS; i++) {
             double frac = i / (double) STEPS;
-            int pct = (int)(frac * 100);
+            int pct = (int) (frac * 100);
             String bar = buildBar(frac);
 
             if (subsystem.getTimeoutTriggered()) {
-                System.out.println("Drone stopped since there is fault.");
+                System.out.println("Drone stopped due to a fault.");
                 return;
             }
 
+            // Compute new coordinates based on the simulation.
             Coordinates c = computeCoorGivenTime(x1, y1, x2, y2, i);
             System.out.printf("%s %d%%  %s,   Current Coordinate: (%d, %d)%n", bar, pct, label, c.getX1(), c.getY1());
+
+            // Update the drone’s current location.
             subsystem.setCurrentLocation(c);
 
+            // Create and send an update message to the scheduler.
             Message updateMsg = new Message(
                     "DRONE_COORD_UPDATE",
                     subsystem.getDroneID(),
                     0,
-                    "", // no severity
+                    "", // no severity for coordinate updates
                     java.time.LocalTime.now(),
                     java.time.LocalTime.now().toString(),
                     c.getX1(),
                     c.getY1(),
                     subsystem.getFoamRemaining(),
-                    "DRONE_COORD_" + subsystem.getDroneID(), // unique event ID
-                    "", 0.0
+                    "DRONE_COORD_" + subsystem.getDroneID(),
+                    "",
+                    0.0
             );
             subsystem.sendToScheduler(updateMsg);
 
-            // update UI
+            // Update the UI if available.
             if (subsystem.getSimulationUI() != null) {
                 subsystem.getSimulationUI().updateDroneLocation(
                         subsystem.getDroneID(),
@@ -112,23 +117,40 @@ public class Utility {
                 );
             }
 
+            // Only call returnToBase() if this simulation represents an actual flight back to base.
+            // That is, only if the drone started away from base (x1,y1 ≠ (0,0))
+            // and if the computed coordinates have reached (0,0)
+            // and if the drone is currently NOT in the Idle state.
+            if ((x1 != 0 || y1 != 0) && (c.getX1() == 0 && c.getY1() == 0)) {
+                if (!(subsystem.getCurrentState() instanceof IdleState)) {
+                    subsystem.returnToBase();
+                }
+                break; // The drone has arrived, so exit the simulation loop.
+            }
+
             if (i < STEPS) {
-                Thread.sleep((long)(stepDur));
+                Thread.sleep((long) stepDur);
             }
         }
     }
 
-
+    // Helper method to build a text-based progress bar.
     private static String buildBar(double fraction) {
         final int WIDTH = 20;
-        int fill = (int)Math.round(WIDTH * fraction);
+        int fill = (int) Math.round(WIDTH * fraction);
         int empty = WIDTH - fill;
         StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < fill; i++) sb.append("#");
-        for (int i = 0; i < empty; i++) sb.append("-");
+        for (int i = 0; i < fill; i++) {
+            sb.append("#");
+        }
+        for (int i = 0; i < empty; i++) {
+            sb.append("-");
+        }
         sb.append("]");
         return sb.toString();
     }
+
+
 
     public static double nozzleDropTime(double usage) {
         double flowTime = usage / FLOW_RATE_LPS;
