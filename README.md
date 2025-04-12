@@ -15,19 +15,19 @@ This submission includes:
 - **"Iteration3StateMachineScheduler.png"**: UML sequence diagram
 
 ## Team Members & Responsibilities
-- **Quinn Vo**: Code base: Responsible for coding the scheduling behaviour of the drones
-- **Ashwitha Ala**: Code base: Responsible for setting up UDP/RPC 
-- **Michael Palummieri**: Code base: Responsible for revising Quinn and Ashwitha's work as needed, as well as for merging their work together into a working program, also finishing touches/polishing
-- **Tudor Lungu**: Unit tests
-- **Samson Ha**: Class Diagrams, Sequence Diagram, State Machine Diagrams
-- **Christina Dang**: Unit tests
+- **Quinn Vo**: Sequence Diagrams, Code base: Responsible for coding the scheduling behaviour of the drones, worked on capacity limits.
+- **Ashwitha Ala**: Class Diagram, Timing Diagrams, Code base: Responsible for setting up UDP/RPC, implemented UI logic 
+- **Michael Palummieri**: Code base: Responsible for revising Quinn and Ashwitha's work as needed, as well as for merging their work together into a working program, also finishing touches/polishing, added performance logger
+- **Tudor Lungu**: Unit tests, helped design code base, code base: fixed issues with UI logic and sending of messages
+- **Samson Ha**: Class Diagrams, Sequence Diagram, State Machine Diagrams, code base: handled bugs and implemented UI logic
+- **Christina Dang**: Unit tests, helped design code base
 
 ## Set up Instructions
 - **To run code:**
   -
   1. Open FighterDrones folder in IntelliJ
   2. Run main.SchedulerMain
-  3. Run main.DroneMain with a parameter: The file requires an integer parameter for the drone's ID. { Run this file for as many drones as you want to have}
+  3. Run main.DroneMain with a parameter: The file requires an integer parameter for the drone's ID. Also click the 'modify options' and then check 'allow multiple instances'.{ Run this file for as many drones as you want to have}
   4. Run main.FireIncidentMain
   5. Observe the output
   
